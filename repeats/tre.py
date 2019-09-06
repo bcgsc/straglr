@@ -458,13 +458,10 @@ class TREFinder:
                         if self.is_same_repeat((pat, result[13])):
                             results_matched.append(result)
             # don't care if results' patterns are same as "expected"
-            results_matched = results[seq]
+            #results_matched = results[seq]
 
-            #results_matched = [result for result in results[seq] if len(result[13]) > 1 and self.is_same_repeat((expected_pat, result[13]))]
             if results_matched:
                 combined_coords = self.combine_trf_coords([(r[0], r[1]) for r in results_matched])
-                #if len(combined_coords) == 1:
-                    #print 'ooo2', read, repeat_seqs[seq], flank, len(repeat_seqs[seq]) - 2 * flank, combined_coords[0][1] - combined_coords[0][0] + 1
                 if len(combined_coords) == 1 and\
                    len(repeat_seqs[seq]) - 2 * flank > 0 and\
                    float(combined_coords[0][1] - combined_coords[0][0] + 1) / (len(repeat_seqs[seq]) - 2 * flank) > 0.8:
@@ -472,7 +469,6 @@ class TREFinder:
                     repeat_seq = repeat_seqs[seq][coords[0]-1:coords[-1]]
 
                     size = len(repeat_seq)
-                    #cn = round(float(len(repeat_seq)) / len(expected_pat), 1)
                     cn = round(float(len(repeat_seq)) / min(expected_pat_sizes), 1)
                     rpos = read_seqs[read].find(repeat_seq)
                     rstart = rpos
