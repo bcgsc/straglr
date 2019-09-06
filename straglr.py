@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 import argparse
-from straglr.ins import INSFinder
-from straglr.tre import TREFinder
-from straglr.version import __version__
-import sys
+from repeats.ins import INSFinder
+from repeats.tre import TREFinder
+from repeats.version import __version__
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -22,10 +21,6 @@ def parse_args():
 
 def main():
     args = parse_args()
-    
-    if args.version:
-        print __version__
-        sys.exit()
 
     tre_finder = TREFinder(args.bam, 
                            args.genome_fasta,
