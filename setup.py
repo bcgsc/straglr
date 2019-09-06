@@ -1,6 +1,6 @@
 import os
 from setuptools import setup, find_packages
-from version.py import __version__
+from version import __version__
 setup(
     name='straglr',
     version=__version__,
