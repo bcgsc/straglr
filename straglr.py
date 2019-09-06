@@ -15,7 +15,7 @@ def parse_args():
     parser.add_argument("--chroms", type=str, nargs="+", help="chromosomes")
     parser.add_argument("--loci", type=str, help="bed file of loci for genotyping")
     parser.add_argument("--max_str_len", type=int, help="maximum STR length. Default:50", default=50)
-    parser.add_argument("--version", action='store_true')
+    parser.add_argument("--version", action='version', version=__version__)
     args = parser.parse_args()
     return args
 
