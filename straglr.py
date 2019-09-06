@@ -1,6 +1,6 @@
 import argparse
-from straglr.ins import INSFinder
-from straglr.tre import TREFinder
+from repeats.ins import INSFinder
+from repeats.tre import TREFinder
 from version import __version__
 import sys
 
