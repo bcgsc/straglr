@@ -23,7 +23,7 @@ setup(
         'intspan>=1.5.8',
         'numpy>=1.14.2',
         'pathos>=0.2.3',
-        'sklearn>=0.19.0',
+        'scikit-learn>=0.19.0',
         'scipy>=1.0.1',
         ],
     scripts = ['straglr.py',
