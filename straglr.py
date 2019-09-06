@@ -1,7 +1,8 @@
+#!/usr/bin/env python
 import argparse
 from repeats.ins import INSFinder
 from repeats.tre import TREFinder
-from version import __version__
+from repeats.version import __version__
 import sys
 
 def parse_args():
@@ -51,4 +52,5 @@ def main():
         
     tre_finder.output(variants, args.out)
 
-main()
+if __name__ == '__main__':
+    main()
