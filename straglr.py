@@ -1,6 +1,7 @@
 import argparse
 from ins import INSFinder
 from tre import TREFinder
+from version import __version__
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -13,12 +14,17 @@ def parse_args():
     parser.add_argument("--chroms", type=str, nargs="+", help="chromosomes")
     parser.add_argument("--loci", type=str, help="bed file of loci for genotyping")
     parser.add_argument("--max_str_len", type=int, help="maximum STR length. Default:50", default=50)
+    parser.add_argument("--version", action='store_true')
     args = parser.parse_args()
     return args
 
 def main():
     args = parse_args()
     
+    if args.version:
+        print __version__
+        sys.exit()
+
     tre_finder = TREFinder(args.bam, 
                            args.genome_fasta,
                            nprocs=args.nprocs,
