@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 import argparse
-from repeats.ins import INSFinder
-from repeats.tre import TREFinder
-from repeats.version import __version__
+from straglr.ins import INSFinder
+from straglr.tre import TREFinder
+from straglr.version import __version__
 import sys
 
 def parse_args():
