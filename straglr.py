@@ -2,6 +2,7 @@ import argparse
 from ins import INSFinder
 from tre import TREFinder
 from version import __version__
+import sys
 
 def parse_args():
     parser = argparse.ArgumentParser()
