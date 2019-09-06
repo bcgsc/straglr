@@ -8,9 +8,17 @@ Straglr is implemented in Python 2.7 and has been tested in Linux environment.
 
 Straglr relies on [Tandem Repeat Finder(TRF)](https://tandem.bu.edu/trf/trf.html) for identifying TR sequences. (TRF executable must be in PATH)
 
+Straglr can be installed via pip: 
+
+```
+pip install git+https://github.com/bcgsc/straglr.git#egg=straglr
+```
+
 Example usage:
 
+```
 python straglr.py <mm2.bam> <reference_fasta> <output.tsv> [--loci loci.bed] [--exclude skip_regions.bed] [--chroms chr] [--min_ins_size N] [--nprocs N]
+```
 
 Some common parameters:
 
