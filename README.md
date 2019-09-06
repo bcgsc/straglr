@@ -1,4 +1,4 @@
-## Straglr (*S*hort-*t*andem *r*epe*a*t *g*enotyping using *l*ong *r*eads
+## Straglr - *S*hort-*t*andem *r*epe*a*t *g*enotyping using *l*ong *r*eads
 
 Straglr is a tool that can be used for genome-wide scans for tandem repeat(TR) expansions or targeted genotyping using long-read alignments.
 
