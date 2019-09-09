@@ -13,7 +13,7 @@ from utils import split_tasks, parallel_process, combine_batch_results, create_t
 from ins import INSFinder
 
 class TREFinder:
-    def __init__(self, bam, genome_fasta, check_split_alignments=False, max_str_len=50, nprocs=1):
+    def __init__(self, bam, genome_fasta, check_split_alignments=False, max_str_len=50, flank_size=100, nprocs=1):
         self.bam = bam
         self.genome_fasta = genome_fasta
         trf_path = spawn.find_executable("trf")
@@ -21,14 +21,13 @@ class TREFinder:
             sys.exit('ABORT: %s' % "can't find trf in PATH")
             
         self.trf_args = '2 5 5 80 10 50 500 -d -h'
-        #self.flank_len = 50
-        self.flank_len = 100
+        #self.flank_len = 100
+        self.flank_len = flank_size
 
         # for checking sequences flanking repeat
-        #self.trf_flank_min_mapped_fraction = 0.9
         self.trf_flank_min_mapped_fraction = 0.8
-        #self.trf_flank_size = 1000
-        self.trf_flank_size = 100
+        #self.trf_flank_size = 100
+        self.trf_flank_size = flank_size
         self.nprocs = nprocs
 
         self.check_split_alignments = check_split_alignments
@@ -117,7 +116,6 @@ class TREFinder:
     def analyze_trf(self, results, full_cov=0.8):
         expansions = {}
         for seq_id in sorted(results.keys()):
-            #eid, ins_len = seq_id.rsplit('.', 1)
             eid, ins_len, gstart, gend = seq_id.rsplit('.', 3)
             
             if (results[seq_id].has_key('i') or results[seq_id].has_key('q')) and results[seq_id].has_key('t'):
@@ -170,6 +168,7 @@ class TREFinder:
         if result.has_key('i'):
             filtered_patterns['i'] = [r[13] for r in result['i'] if float(r[1] - r[0] + 1) / ins_len >= full_cov]
 
+        # make sure detected repeat pattern crosses mid-point, i.e. the intended location
         mid_pts = self.flank_len, self.flank_len + 1
         for pt in ('q', 't'):
             if result.has_key(pt):
@@ -326,24 +325,6 @@ class TREFinder:
         else:
             return False
 
-    #def check_trf_prediction_fullness_old(self, start, end, aligned_pairs, read=None):
-        #left_flank = sorted([p[1] for p in aligned_pairs if (p[0] >= start - self.trf_flank_size and p[0] < start and p[1] is not None)])
-        #right_flank = sorted([p[1] for p in aligned_pairs if (p[0] <= end + self.trf_flank_size and p[0] > end and p[1] is not None)])
-
-        #chrom_start = None
-        #chrom_end = None
-        #if left_flank and left_flank[0] is not None and right_flank and right_flank[0] is not None:
-            #chrom_start = max(left_flank)
-            #chrom_end = min(right_flank)
-
-        ##if read:
-            ##print 'ff', read, start, end, len(left_flank), float(len(left_flank)) / self.trf_flank_size, len(right_flank), float(len(right_flank)) / self.trf_flank_size
-        #if float(len(left_flank)) / self.trf_flank_size >= self.trf_flank_min_mapped_fraction and \
-           #float(len(right_flank)) / self.trf_flank_size >= self.trf_flank_min_mapped_fraction:
-            #return chrom_start, chrom_end
-        #else:
-            #return False
-
     def create_trf_fasta(self, locus, read, tstart, tend, seq):
         """ for genotyping """
         header = '%s' % ':'.join(map(str, [locus[0],
@@ -357,7 +338,7 @@ class TREFinder:
 
         return header, '>%s\n%s\n' % (header, seq)
 
-    def get_alleles(self, loci, flank=50, closeness_to_end=100):
+    def get_alleles(self, loci, flank=100, closeness_to_end=100):
         def get_distance(repeat_start, repeat_end, pat_start, pat_end):
             d = 0
             # pat subsumed in repeat
@@ -387,6 +368,8 @@ class TREFinder:
         clipped = defaultdict(dict)
         for locus in loci:
             for aln in bam.fetch(locus[0], locus[1], locus[2]):
+                locus_size = locus[2] - locus[1] + 1
+
                 if INSFinder.is_uniquely_mapped(aln) and\
                    aln.reference_start <= locus[1] - flank and\
                    aln.reference_end >= locus[2] + flank:
@@ -418,7 +401,7 @@ class TREFinder:
                     aln2 = clipped[read]['start'][0]
 
                     if aln1.query_alignment_end < aln2.query_alignment_start:
-                        seq = aln1.query_sequence[aln1.query_alignment_end - flank:aln2.query_alignment_start + flank]
+                        seq = aln1.query_sequence[aln1.query_alignment_end - locus_size - flank:aln2.query_alignment_start + locus_size + flank]
                         header, fa_entry = self.create_trf_fasta(locus, aln1.query_name, aln1.reference_end, aln2.reference_start, seq)
                         trf_input += fa_entry
                         repeat_seqs[header] = seq
