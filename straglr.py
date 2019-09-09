@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument("--loci", type=str, help="bed file of loci for genotyping")
     parser.add_argument("--max_str_len", type=int, help="maximum STR length. Default:50", default=50)
     parser.add_argument("--flank_size", type=int, help="size of flanking sequence around repeat for generating checking sequence. Default:100", default=100)
+    parser.add_argument("--debug", action='store_true', help="debug mode i.e. keep trf output")
     parser.add_argument("--version", action='version', version=__version__)
     args = parser.parse_args()
     return args
@@ -46,8 +47,10 @@ def main():
     else:
         tre_finder.check_split_alignments = True
         variants = tre_finder.genotype(args.loci)
-        
+
     tre_finder.output(variants, args.out)
+    if not args.debug:
+        tre_finder.cleanup()
 
 if __name__ == '__main__':
     main()

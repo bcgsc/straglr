@@ -36,6 +36,8 @@ class TREFinder:
 
         self.max_str_len = max_str_len
 
+        self.tmp_files = set()
+
     def construct_trf_output(self, input_fasta):
         m = re.search('(\d[\d\s]*\d)', self.trf_args)
         if m is not None:
@@ -65,6 +67,7 @@ class TREFinder:
 
             start and end index are 1-based
         """
+        self.tmp_files.add(trf_output)
         results = defaultdict(list)
         with open(trf_output, 'r') as ff:
             for line in ff:
@@ -208,7 +211,6 @@ class TREFinder:
                     ins_dict[eid].gend = expansions[eid][2]
 
     def merge_loci(self, tres, w=100, s=0.2):
-        #loci_sorted = sorted([[tre.chrom, tre.gpos, tre.gpos+1, tre.repeat_unit] for tre in tres], key=itemgetter(0, 1))
         loci_sorted = sorted([[tre.chrom, tre.gpos, tre.gend, tre.repeat_unit, len(tre.repeat_unit)] for tre in tres], key=itemgetter(0, 1, 4))
 
         # list of new tuples representing merges
@@ -586,3 +588,9 @@ class TREFinder:
                     allele_cols = allele.as_tsv()
 
                     out.write('%s\n' % '\t'.join(variant_cols + allele_cols))
+
+    def cleanup(self):
+        if self.tmp_files:
+            for ff in self.tmp_files:
+                if os.path.exists(ff):
+                    os.remove(ff)
