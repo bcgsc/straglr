@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument("--chroms", type=str, nargs="+", help="chromosomes")
     parser.add_argument("--loci", type=str, help="bed file of loci for genotyping")
     parser.add_argument("--max_str_len", type=int, help="maximum STR length. Default:50", default=50)
+    parser.add_argument("--flank_size", type=int, help="size of flanking sequence around repeat for generating checking sequence. Default:100", default=100)
     parser.add_argument("--version", action='version', version=__version__)
     args = parser.parse_args()
     return args
@@ -25,6 +26,7 @@ def main():
     tre_finder = TREFinder(args.bam, 
                            args.genome_fasta,
                            nprocs=args.nprocs,
+                           flank_size=args.flank_size,
                            max_str_len=args.max_str_len)
 
     if not args.loci:
