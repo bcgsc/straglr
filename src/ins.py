@@ -1,41 +1,51 @@
 import pysam
-from expanded_repeat_finder import ExpandedRepeatFinder
 from pybedtools import BedTool
 import sys
 import os
-from utils import create_tmp_file, parallel_process, combine_batch_results
-from intspan import intspan
+from .utils import create_tmp_file, parallel_process, combine_batch_results, reverse_complement, split_tasks
 from collections import defaultdict
 import re
+import random
+import numpy as np
 
 class INS:
-    def __init__(self, chrom, gpos, read, rpos, seq, etype):
-        self.chrom = chrom
-        self.gpos = gpos
-        self.gend = gpos + 1
-        self.read = read
-        self.rpos = rpos
-        self.seq = seq
-        self.etype = etype
-        self.eid = '_'.join(map(str, [self.read, self.rpos, len(self.seq)]))
+    """
+    chrom, gpos, gpos + 1, aln.query_name, rpos, ins_seq, 'ins', None
+    instance is a list:
+    0: chrom
+    1: gstart
+    2: gend
+    3: read
+    4: rpos
+    5: seq
+    6: etype ('ins' or 'tre')
+    7: neighbour_seq
+    8: repeat_unit (for tre)
+    """
+    @classmethod
+    def extract_neighbour_seqs(cls, read_seq, rpos, ins_size, flank_size):
+        return read_seq[rpos - flank_size : rpos] + \
+               read_seq[rpos + ins_size : rpos + ins_size + flank_size]
 
-        self.neighbour_seq = None
-        self.repeat_unit = None
+    @classmethod
+    def eid(cls, ins):
+        return '_'.join(map(str, [ins[3], ins[4], len(ins[5])]))
 
-    def extract_neighbour_seqs(self, read_seq, size):
-        self.neighbour_seq = read_seq[self.rpos - size : self.rpos] + \
-            read_seq[self.rpos + len(self.seq) : self.rpos + len(self.seq) + size]
-
-    def as_bed(self):
-        cols = (self.chrom, self.gpos, self.gpos + 1, self.eid)
+    @classmethod
+    def to_bed(cls, ins, include_read=False):
+        cols = [ins[0], ins[1], ins[1] + 1, cls.eid(ins)]
+        if include_read:
+            cols.append(ins[3])
         return '\t'.join(map(str, cols))
 
 class INSFinder:
-    def __init__(self, bam, genome_fasta, min_size, w=100, exclude=None, chroms=None, nprocs=None):
+    def __init__(self, bam, genome_fasta, min_size, w=100, reads_fasta=None, exclude=None, chroms=None, nprocs=None, min_support=None, max_cov=100):
         self.bam = bam
         self.genome_fasta = genome_fasta
 
         self.min_size = min_size
+
+        self.reads_fasta = reads_fasta
         
         # for extracting neighbor sequence - for tre search
         self.w = w
@@ -43,39 +53,53 @@ class INSFinder:
         # bed file of exclude regions
         self.exclude = exclude
         
-        self.erf = ExpandedRepeatFinder(self.bam, self.genome_fasta)
-        self.erf.flank_len = self.w
-
         self.chroms = chroms
         self.nprocs = nprocs
 
-        self.erf = ExpandedRepeatFinder(self.bam, self.genome_fasta)
-        self.erf.flank_len = self.w
+        self.check_split_alignments = True
 
-        self.check_split_alignments = False
+        self.min_support = min_support
+
+        self.max_cov = max_cov
 
     def find_ins(self):
         bam = pysam.Samfile(self.bam, 'rb')
+
         chroms = [chrom for chrom in bam.references if not '_' in chrom and not 'M' in chrom]
         if self.chroms:
             chroms = self.chroms
 
-        regions = self.get_examine_regions(chroms)
+        regions = self.get_examine_regions(bam, chroms)
+        print('zz {}'.format(len(regions)))
+
         all_ins = []
         if regions:
             if self.nprocs > 1:
-                batched_results = parallel_process(self.examine_region, regions, self.nprocs)
+                random.shuffle(regions)
+                batches = list(split_tasks(regions, self.nprocs))
+                batched_results = parallel_process(self.examine_regions, batches, self.nprocs)
                 all_ins = combine_batch_results(batched_results, type(batched_results[0]))
             else:
+                reads_fasta = None
+                if self.reads_fasta:
+                    reads_fasta = pysam.Fastafile(self.reads_fasta)
                 all_ins = []
                 for region in regions:
-                    all_ins.extend(self.examine_region(region))
-                    
-        ins_cleared = all_ins
-        if self.exclude:
-            ins_cleared = self.screen(all_ins)        
+                    all_ins.extend(self.examine_region(region, bam=bam, reads_fasta=reads_fasta))
 
-        return ins_cleared
+        print('gg {}'.format(len(all_ins)))
+        if all_ins:
+            ins_cleared = all_ins
+            if self.exclude:
+                ins_cleared = self.screen(all_ins)
+
+            if ins_cleared:
+                eids_merged = self.merge(ins_cleared)
+
+                if eids_merged:
+                    return [ins for ins in ins_cleared if INS.eid(ins) in eids_merged]
+
+        return []
 
     def has_secondary_alignment(self, aln):
         try:
@@ -91,90 +115,157 @@ class INSFinder:
         return fraction_query, fraction_reference
 
     @classmethod
-    def is_uniquely_mapped(cls, aln, closeness_to_end=100):
+    def is_uniquely_mapped(cls, aln, max_clipping_allowed=0.05):
+        closeness_to_end = aln.infer_read_length() * max_clipping_allowed
+        #print('qq', aln.query_name, closeness_to_end, aln.query_alignment_start, aln.query_alignment_end, aln.query_length, aln.infer_read_length(), aln.query_alignment_length, float(aln.query_alignment_length) / aln.infer_read_length(), aln.has_tag('SA'))
+        if float(aln.query_alignment_length) / aln.infer_read_length() > 0.5 and not aln.has_tag('SA'):
+            return True
         if aln.query_alignment_start <= closeness_to_end and\
            aln.query_alignment_end >= aln.query_length - closeness_to_end and\
            not aln.has_tag('SA'):
             return True
 
-    def examine_region(self, region):
+    @classmethod
+    def get_seq(cls, fasta, name, reverse, coords=None):
+        seq = fasta.fetch(name)
+        if reverse:
+            seq = reverse_complement(seq)
+        if coords:
+            return seq[coords[0]:coords[1]]
+        else:
+            return seq
+
+    def examine_regions(self, regions):
+        """worker wrapper for examine_region"""
         bam = pysam.Samfile(self.bam, 'rb')
+        reads_fasta = None
+        if self.reads_fasta:
+            reads_fasta = pysam.FastaFile(self.reads_fasta)
 
-        #skipped = set()
         ins_list = []
-        clipped_pairs = defaultdict(dict)
-        for aln in bam.fetch(region[0], int(region[1]), int(region[2])):
-            #mapped_fractions = self.get_mapped_fractions(aln)
-            #if aln.mapping_quality == 0 or self.has_secondary_alignment(aln):
-                #skipped.add(aln.query_name)
-
-            #if aln.has_tag('SA'):
-                #clipped_end, partner_start = self.is_split_aln_potential_ins(aln)
-                #if clipped_end is not None:
-                    #clipped_pairs[aln.query_name][clipped_end] = (aln, partner_start)
-            #else:
-                #ins_list.extend(self.extract_ins(aln))
-
-            if self.is_uniquely_mapped(aln):
-                ins_list.extend(self.extract_ins(aln))
-            elif self.check_split_alignments and aln.has_tag('SA'):
-                clipped_end, partner_start = self.is_split_aln_potential_ins(aln, min_split_size=self.min_size)
-                if clipped_end is not None:
-                    clipped_pairs[aln.query_name][clipped_end] = (aln, partner_start)
-
-        if clipped_pairs:
-            ins_list.extend(self.extract_ins_from_clipped(clipped_pairs, bam))
+        for region in regions:
+            ins_list.extend(self.examine_region(region, bam=bam, reads_fasta=reads_fasta))
 
         return ins_list
 
-    @classmethod
-    def find_missing_clipped_pairs(cls, clipped_pairs, bam):
-        for read in clipped_pairs.keys():
-            missing_end = None
-            chrom = None
-            coord = None
-            partner_start = max
-            if clipped_pairs[read].has_key('start') and not clipped_pairs[read].has_key('end'):
-                missing_end = 'end'
-                chrom = clipped_pairs[read]['start'][0].reference_name
-                partner_start = clipped_pairs[read]['start'][0].reference_start
-                coord = clipped_pairs[read]['start'][1]
-            elif clipped_pairs[read].has_key('end') and not clipped_pairs[read].has_key('start'):
-                missing_end = 'start'
-                chrom = clipped_pairs[read]['end'][0].reference_name
-                partner_start = clipped_pairs[read]['end'][0].reference_start
-                coord = clipped_pairs[read]['end'][1]
+    def get_coverage(self, bam, region):
+        covs = []
+        for pileup_col in bam.pileup(region[0], int(region[1]), int(region[2])):
+            covs.append(pileup_col.n)
 
-            if missing_end:
-                for aln in bam.fetch(chrom, coord-1, coord+1):
-                    if aln.query_name == read and aln.reference_start == coord - 1:
-                        clipped_pairs[read][missing_end] = (aln, partner_start)
+        if covs:
+            return np.mean(covs)
+        else:
+            return None
 
-    def extract_ins_from_clipped(self, clipped_pairs, bam):
-        # find missing partners
-        self.find_missing_clipped_pairs(clipped_pairs, bam)
+    def examine_region(self, region, bam=None, reads_fasta=None):
+        if bam is None:
+            bam = pysam.Samfile(self.bam, 'rb')
 
+        ins_list = []
+        mean_cov = self.get_coverage(bam, region)
+        if mean_cov is None or mean_cov > self.max_cov:
+            #print('skipping region {}:{}-{} because of dubious coverage {}'.format(region[0], region[1], region[2], mean_cov))
+            return ins_list
+
+        clipped_pairs = defaultdict(dict)
+        for aln in bam.fetch(region[0], int(region[1]), int(region[2])):
+            if self.check_split_alignments:
+                clipped_end, partner_start = self.is_split_aln_potential_ins(aln)
+                if clipped_end is not None:
+                    clipped_pairs[aln.query_name][clipped_end] = (aln, partner_start)
+
+            if not aln.query_name in clipped_pairs and self.is_uniquely_mapped(aln):
+                ins_list.extend(self.extract_ins(aln, region, reads_fasta=reads_fasta))
+
+        if clipped_pairs:
+            ins_list.extend(self.extract_ins_from_clipped(clipped_pairs, bam, reads_fasta=reads_fasta))
+
+        return ins_list
+
+    def extract_ins_from_clipped(self, clipped_pairs, bam, reads_fasta=None):
         ins_from_clipped = []
         for read in clipped_pairs.keys():
-            if clipped_pairs[read].has_key('start') and clipped_pairs[read].has_key('end'):
+            if 'start' in clipped_pairs[read] and 'end' in clipped_pairs[read]:
                 aln1, aln2 = clipped_pairs[read]['end'][0], clipped_pairs[read]['start'][0]
-                ins_seq = aln1.query_sequence[aln1.query_alignment_end:aln2.query_alignment_start]
+                if not reads_fasta:
+                    ins_seq = aln1.query_sequence[aln1.query_alignment_end:aln2.query_alignment_start]
+                else:
+                    # need to adjust coordinates for hard-clips
+                    qstart = aln1.query_alignment_end
+                    qend = aln2.query_alignment_start
+                    if aln1.cigartuples[0][0] == 5:
+                        qstart += aln1.cigartuples[0][1]
+                    if aln2.cigartuples[0][0] == 5:
+                        qend += aln2.cigartuples[0][1]
+                    ins_seq = self.get_seq(reads_fasta, read, aln1.is_reverse, [qstart, qend])
+
                 if len(ins_seq) >= self.min_size:
                     if aln1 != aln2:
-                        print 'iii', aln1.query_name, aln1.reference_name, aln1.reference_start, aln2.reference_name, aln2.reference_start, ins_seq
-                        ins_from_clipped.append(INS(aln1.reference_name,
-                                                    aln1.reference_end,
-                                                    aln1.query_name,
-                                                    aln1.query_alignment_end,
-                                                    ins_seq,
-                                                    'ins'))
-                else:
-                    print 'iij', aln1.query_name, aln1.reference_name, aln1.reference_start, aln2.reference_name, aln2.reference_start
+                        mid = int((aln1.reference_end + aln2.reference_start) / 2)
+                        ins_from_clipped.append([aln1.reference_name,
+                                                 #aln1.reference_end,
+                                                 #aln1.reference_end + 1,
+                                                 mid,
+                                                 mid + 1,
+                                                 aln1.query_name,
+                                                 aln1.query_alignment_end,
+                                                 ins_seq,
+                                                 'ins',
+                                                 None],
+                                                )
 
         return ins_from_clipped
 
     @classmethod
-    def is_split_aln_potential_ins(cls, aln, closeness_to_end=100, min_split_size=500, closeness_to_each=5000, closeness_in_size=20000, max_outside_mappings=2):
+    def is_split_aln_potential_ins(cls, aln, closeness_to_end=200, min_split_size=500, check_end=None):
+        clipped_end = None
+        partner_start = None
+        if aln.has_tag('SA'):
+            clipped_end, partner_start = cls.is_split_aln_potential_ins_with_SA(aln,
+                                                                                closeness_to_end=closeness_to_end,
+                                                                                min_split_size=min_split_size,
+                                                                                check_end=check_end)
+        if clipped_end is None:
+            clipped_end, partner_start = cls.is_split_aln_potential_ins_without_SA(aln,
+                                                                                closeness_to_end=closeness_to_end,
+                                                                                min_split_size=min_split_size,
+                                                                                check_end=check_end)
+        return clipped_end, partner_start
+
+    @classmethod
+    def is_split_aln_potential_ins_without_SA(cls, aln, closeness_to_end=200, min_split_size=500, check_end=None):
+        def is_clipped(end):
+            if end == 'start':
+                i, j = 0, -1
+            else:
+                i, j = -1, 0
+
+            if aln.cigartuples[i][0] >= 4 and aln.cigartuples[i][0] <=5 and\
+                aln.cigartuples[i][1] >= min_split_size:
+                if not check_end:
+                    if not (aln.cigartuples[j][0] >= 4 and aln.cigartuples[j][0] <=5 and\
+                            aln.cigartuples[j][1] >= min_split_size) and\
+                        aln.cigartuples[j][1] <= closeness_to_end:
+                            return True
+                else:
+                    return True
+                return False
+
+        clipped_end = None
+        partner_start = None
+
+        if (check_end is None or check_end == 'start') and is_clipped('start'):
+            clipped_end = 'start'
+            partner_start = aln.reference_start
+        elif (check_end is None or check_end == 'end') and is_clipped('end'):
+            clipped_end = 'end'
+            partner_start = aln.reference_end
+
+        return clipped_end, partner_start
+
+    @classmethod
+    def is_split_aln_potential_ins_with_SA(cls, aln, closeness_to_end=200, min_split_size=500, closeness_in_size=40000, check_end=None):
         """ aln must have been checked if it has SA """
         clipped = None
         partner_start = None
@@ -184,17 +275,18 @@ class INSFinder:
         clipped_start_regex = re.compile('^(\d+)[S|H]')
         clipped_end_regex = re.compile('(\d+)[S|H]$')
 
+        closeness_to_each = aln.infer_read_length()
         sas = cls.get_secondary_alignments(aln)
-        if sas.has_key(aln.reference_name) and len(sas[aln.reference_name]) <= max_outside_mappings:
+        if aln.reference_name in sas:
             strand1 = '+' if not aln.is_reverse else '-'
-            if aln.cigartuples[-1][0] >= 4 and\
-               aln.cigartuples[-1][1] >= min_split_size and\
-               aln.query_alignment_start <= closeness_to_end:
+            if (check_end is None or check_end == 'end') and\
+                aln.cigartuples[-1][0] >= 4 and\
+                aln.cigartuples[-1][1] >= min_split_size and\
+                aln.query_alignment_start <= closeness_to_end:
                 clipped_size1 = aln.cigartuples[-1][1]
                 for sa in sas[aln.reference_name]:
                     if abs(sa[0] - aln.reference_start) < closeness_to_each and\
                        sa[1] == strand1:
-                        #match = re.search('^(\d+)[S|H]', sa[2])
                         match_start = clipped_start_regex.search(sa[2])
                         match_end = clipped_end_regex.search(sa[2])
                         if match_start and\
@@ -203,27 +295,25 @@ class INSFinder:
                             if abs(clipped_size1 - clipped_size2) <= closeness_in_size:
                                 clipped = 'end'
                                 partner_start = sa[0]
-                                #print 'ee', aln.query_name, aln.cigarstring, clipped_size2, sa[2], match_end
                                 break
 
-            elif aln.cigartuples[0][0] >= 4 and\
-                 aln.cigartuples[0][1] >= min_split_size and\
-                 aln.query_alignment_end >= aln.query_length - closeness_to_end:
-                clipped_size1 = aln.cigartuples[0][1]
-                for sa in sas[aln.reference_name]:
-                    if abs(sa[0] - aln.reference_start) < closeness_to_each and\
-                       sa[1] == strand1:
-                        #match = re.search('(\d+)[S|H]$', sa[2])
-                        match_end = clipped_end_regex.search(sa[2])
-                        match_start = clipped_start_regex.search(sa[2])
-                        if match_end and\
-                           (match_start is None or int(match_start.group(1)) <= closeness_to_end):
-                            clipped_size2 = int(match_end.group(1))
-                            if abs(clipped_size1 - clipped_size2) <= closeness_in_size:
-                                clipped = 'start'
-                                partner_start = sa[0]
-                                #print 'ss', aln.query_name, aln.cigarstring, clipped_size2, sa[2]
-                                break
+            if clipped is None and (check_end is None or check_end == 'start'):
+                if aln.cigartuples[0][0] >= 4 and\
+                   aln.cigartuples[0][1] >= min_split_size and\
+                   aln.query_alignment_end >= aln.query_length - closeness_to_end:
+                    clipped_size1 = aln.cigartuples[0][1]
+                    for sa in sas[aln.reference_name]:
+                        if abs(sa[0] - aln.reference_start) < closeness_to_each and\
+                           sa[1] == strand1:
+                            match_end = clipped_end_regex.search(sa[2])
+                            match_start = clipped_start_regex.search(sa[2])
+                            if match_end and\
+                               (match_start is None or int(match_start.group(1)) <= closeness_to_end):
+                                clipped_size2 = int(match_end.group(1))
+                                if abs(clipped_size1 - clipped_size2) <= closeness_in_size:
+                                    clipped = 'start'
+                                    partner_start = sa[0]
+                                    break
 
         return clipped, partner_start
 
@@ -238,7 +328,7 @@ class INSFinder:
 
         return mappings
         
-    def extract_ins(self, aln, out=None, w=100):
+    def extract_ins(self, aln, region, reads_fasta=None, out=None, w=100):
         ins_found = []
 
         ins_tuples = [ct for ct in aln.cigartuples if ct[0] == 1 and ct[1] >= self.min_size]
@@ -251,11 +341,19 @@ class INSFinder:
             offset_target = sum([c[1] for c in aln.cigartuples[:index_tup] if c[0] in (0, 2, 3)])
             rpos = offset_query
             gpos = aln.reference_start + offset_target - 1
+            if gpos < int(region[1]) and gpos > int(region[2]):
+                continue
 
             if rpos is not None:
-                ins_seq = aln.query_sequence[rpos:rpos + size]
-                ins = INS(chrom, gpos, aln.query_name, rpos, ins_seq, 'ins')
-                ins.extract_neighbour_seqs(aln.query_sequence, self.w)
+                if not reads_fasta:
+                    ins_seq = aln.query_sequence[rpos:rpos + size]
+                else:
+                    ins_seq = self.get_seq(reads_fasta, aln.query_name, aln.is_reverse, [rpos, rpos + size])
+                ins = [chrom, gpos, gpos + 1, aln.query_name, rpos, ins_seq, 'ins', None]
+                if not self.reads_fasta:
+                    ins[7] = INS.extract_neighbour_seqs(aln.query_sequence, rpos, len(ins_seq), self.w)
+                else:
+                    ins[7] = INS.extract_neighbour_seqs(self.get_seq(reads_fasta, aln.query_name, aln.is_reverse), rpos, len(ins_seq), self.w)
                 ins_found.append(ins)
                         
         return ins_found
@@ -263,53 +361,82 @@ class INSFinder:
     def extract_neighbour_seqs(self, read_seq, rpos, size, ins_len):
         return read_seq[rpos - size : rpos] + \
                read_seq[rpos + ins_len : rpos + ins_len + size]
+ 
+    def create_tmp_bed(self, ins_list):
+        ins_bed = ''
+        for ins in ins_list:
+            ins_bed += '{}\n'.format(INS.to_bed(ins, include_read=True))
+
+        ins_bed_file = create_tmp_file(ins_bed)
+        return ins_bed_file
+
+    def merge(self, ins_list, d=50):
+        ins_bed_file = self.create_tmp_bed(ins_list)
+        print('ins all {}'.format(ins_bed_file))
+
+        ins_all = BedTool(ins_bed_file)
+        ins_merged = ins_all.sort().merge(d=d, c='4,5', o='distinct,count_distinct')
+        ins_merged.saveas('ins_merged.bed')
+
+        eids_merged = set()
+        for c in ins_merged:
+            if int(c[4]) >= self.min_support:
+                eids_merged |= set(c[3].split(','))
+
+        return eids_merged
 
     def screen(self, ins_list):
         ins_bed = ''
         for ins in ins_list:
-            ins_bed += '%s\n' % ins.as_bed()
+            ins_bed += '{}\n'.format(INS.to_bed(ins))
 
         ins_bed_file = create_tmp_file(ins_bed)
+        print('kkk {}'.format(ins_bed_file))
 
         ins_all = BedTool(ins_bed_file)
         exclusions = BedTool(self.exclude)
-        ins_cleared = ins_all.subtract(exclusions, A=True)
 
-        eids_cleared = set([c[3] for c in ins_cleared])
-        return [ins for ins in ins_list if ins.eid in eids_cleared]
+        ins_removed = ins_all.intersect(self.exclude)
+        eids_removed = set([ins[3] for ins in ins_removed])
+        ins_kept = [ins for ins in ins_list if INS.eid(ins) not in eids_removed]
+        
+        return ins_kept
+        #eids_merged = self.merge(ins_kept)
 
-    def get_excluded_regions(self, chrom):
-        skips = intspan()
-        with open(self.exclude, 'r') as ff:
-            for line in ff:
-                cols = line.rstrip().split()
-                if cols[0] == chrom:
-                    skips |= '%s-%s' % (cols[1], cols[2])
+        #return [ins for ins in ins_list if INS.eid(ins) in eids_merged]
 
-        return skips
+    def split_region(self, region, max_size):
+        subregions = []
+        start = int(region[1])
+        end = int(region[2])
+        while start + max_size - 1 < end:
+            subregions.append([region[0], start, start + max_size - 1])
+            start = start + max_size
+        subregions.append([region[0], start, end])
+        return subregions
 
-    def get_examine_regions(self, chroms):
-        bam = pysam.Samfile(self.bam, 'rb')
+    def get_examine_regions(self, bam, chroms, chuck_size=1000000):
         chrom_lens = dict((bam.references[i], bam.lengths[i]) for i in range(len(bam.references)))
         regions = []
         if self.exclude:
             chrom_spans = ''
             for chrom in sorted(chroms):
-                chrom_spans += '%s\n' % '\t'.join(map(str, [chrom, 0, chrom_lens[chrom]]))
+                chrom_spans += '{}\n'.format('\t'.join(map(str, [chrom, 0, chrom_lens[chrom]])))
             chrom_bed_file = create_tmp_file(chrom_spans)
 
             chrom_bed = BedTool(chrom_bed_file)
             exclude_bed = BedTool(self.exclude)
-            regions = map(tuple, chrom_bed.subtract(exclude_bed))
+            regions_kept = map(tuple, chrom_bed.subtract(exclude_bed))
+
+            for region in regions_kept:
+                regions.extend(self.split_region(region, chuck_size))
 
         else:
             size = 1000000
             for chrom in chroms:
                 i = 0
-                while i < chrom_lengths[chrom]:
+                while i < chrom_lens[chrom]:
                     regions.append((chrom, i, min(i + size, chrom_lens[chrom])))
-                    print spans[-1]
                     i += size + 1
-
+ 
         return regions
-
