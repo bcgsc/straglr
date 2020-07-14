@@ -1,131 +1,142 @@
 import numpy as np
 from sklearn.cluster import KMeans, AgglomerativeClustering
-from collections import defaultdict
+from collections import defaultdict, Counter
 from scipy import stats
+from .cluster import Cluster
 
 class Variant:
+    """
+    0: chrom
+    1: start
+    2: end
+    3: alleles
+    4: repeat
+    5: genotypes
+    6: genotype_summary
+    """
     tsv_headers = ['chrom',
                    'start',
                    'end',
                    'repeat_unit',
-                   'support',
-                   'gt1',
-                   'gt1_support',
-                   'gt2',
-                   'gt2_support',
+                   'genotype',
                    ]
 
-    def __init__(self, chrom, start, end, repeat_unit):
-        self.chrom = chrom
-        self.start = start
-        self.end = end
-        self.repeat_unit = repeat_unit
-        self.alleles = []
-        self.genotypes = []
+    @classmethod
+    def set_genotype_config(cls, method=None, min_reads=None, max_num_clusters=3, eps=None):
+        genotype_config = {'method': 'gmm',
+                           'min_reads': 4,
+                           'max_num_clusters': max_num_clusters,
+                           'eps': 50}
 
-    def update_coords(self):
-        if self.alleles:
-            # use median instead of min() and max() because of outliers
-            self.start = int(np.median([a.chrom_start for a in self.alleles if a.chrom_start is not None]))
-            self.end = int(np.median([a.chrom_end for a in self.alleles if a.chrom_end is not None]))
+        # default = 'gmm', alternative: 'dbscan'
+        if method == 'dbscan':
+            genotype_config['method'] = method
 
-    def genotype(self):
-        def cluster_into_2(cn):
-            X = np.array(cn).reshape(-1,1)
+        # minimum number of reads per cluster
+        if min_reads is not None:
+            genotype_config['min_reads'] = min_reads
 
-            # k-means
-            #km = KMeans(n_clusters=2)
-            #km = km.fit(X)
-            #genotypes = [c[0] for c in km.cluster_centers_]
-            #clusters = defaultdict(list)
-            #for i in range(len(cn)):
-                #clusters[genotypes[km.labels_[i]]].append(cn[i])
+        # default 50 is used if not specified
+        if eps is not None:
+            genotype_config['eps'] = eps
 
-            # hclust
-            hclust = AgglomerativeClustering(n_clusters=2, affinity='euclidean', linkage='ward')
-            clusters = defaultdict(list)
-            labels = hclust.fit_predict(X)
-            for i in range(len(cn)):
-                clusters[labels[i]].append(cn[i])
+        cls.clustering = Cluster(genotype_config['method'],
+                                 genotype_config['min_reads'],
+                                 genotype_config['max_num_clusters'],
+                                 genotype_config['eps'])
 
-            return clusters
+    @classmethod
+    def genotype(cls, variant, report_in_size=False):
+        # cluster - always use sizes
+        sizes = sorted([a[4] for a in variant[3]])
+        clusters = cls.clustering.cluster(sizes)
 
-        def verify_2_clusters(c1, c2, threshold=0.05):
-            stat, pval = stats.ttest_ind(np.array(c1), np.array(c2), equal_var=False)
-
-            same = True
-            if pval < threshold:
-                same = False
-
-            return stat, pval, same
-
-        # extract all copy numbers
-        if len(self.alleles) > 2:
-            cns = [a.copy_number for a in self.alleles]
-            clusters = cluster_into_2(cns)
-            means = sorted(clusters.keys())
-
-            same = True
-            if len(means) >= 2:
-                if len(clusters[means[0]]) > 1 and len(clusters[means[1]]) > 1:
-                    stat, val, same = verify_2_clusters(clusters[means[0]], clusters[means[1]])
-
-            if same:
-                self.genotypes = [round(np.median(cns), 1)]
-                for allele in self.alleles:
-                    allele.genotype = round(self.genotypes[0], 1)
+        # genotype labels: mean of either copy numbers(default) or size
+        for cluster in clusters:
+            if report_in_size:
+                alleles = cluster
             else:
-                self.genotypes = [round(np.median(clusters[means[0]]), 1), round(np.median(clusters[means[1]]), 1)]
-                cn_to_genotype_index = {}
-                for i in range(len(means)):
-                    for cn in clusters[means[i]]:
-                        cn_to_genotype_index[cn] = i
-                for allele in self.alleles:
-                    allele.genotype = self.genotypes[cn_to_genotype_index[allele.copy_number]]
+                alleles = [allele[3] for allele in variant[3] if allele[4] in cluster]
+            variant[5].append(round(np.mean(alleles), 1))
 
-    def as_tsv(self):
-        sorted_genotypes = sorted(self.genotypes, reverse=True)
-        cols = [self.chrom,
-                self.start,
-                self.end,
-                self.repeat_unit,
-                len(self.alleles),
-                sorted_genotypes[0],
-                len([a for a in self.alleles if a.genotype == sorted_genotypes[0]]),
-                sorted_genotypes[1] if len(sorted_genotypes) == 2 else '-',
-                len([a for a in self.alleles if a.genotype == sorted_genotypes[1]]) if len(sorted_genotypes) == 2 else '-',
+        # assign genotype to each allele
+        for allele in variant[3]:
+            assigned = False
+            for i in range(len(clusters)):
+                if allele[4] in clusters[i]:
+                    allele.append(variant[5][i])
+                    assigned = True
+                    break
+
+            # '-' assigned if read is an outlier in clustering
+            if not assigned:
+                allele.append('-')
+
+    @classmethod 
+    def summarize_genotype(cls, variant):
+        allele_counts = Counter([allele[-1] for allele in variant[3]])
+        out = []
+        for allele in sorted([a for a in allele_counts.keys() if type(a) is not str], reverse=True) +\
+                             [a for a in allele_counts.keys() if type(a) is str]:
+            if allele == '-' and len(allele_counts.keys()) > 1:
+                continue
+            out.append('{}({})'.format(allele, allele_counts[allele]))
+        variant[6] = ';'.join(out)
+
+    @classmethod
+    def to_tsv(cls, variant):
+        sorted_genotypes = sorted(variant[5], reverse=True)
+        cols = [variant[0],
+                variant[1],
+                variant[2],
+                variant[4],
+                variant[6],
                 ]
+        return list(map(str, cols))
 
-        return map(str, cols)
+    @classmethod
+    def above_min_expansion(cls, variant, min_expansion):
+        ref_size = int(variant[2]) - int(variant[1]) + 1
+
+        if variant[5]:
+            max_allele_size = sorted(variant[5])[-1]
+            return max_allele_size - ref_size >= min_expansion
+        else:
+            return False
+
+    @classmethod
+    def update_coords(cls, variant):
+        genome_starts = [a[5] for a in variant[3]]
+        genome_ends = [a[6] for a in variant[3]]
+        if genome_starts and genome_ends:
+            variant[1] = int(np.median(genome_starts))
+            variant[2] = int(np.median(genome_ends))
 
 class Allele:
+    """
+    0: read
+    1: rstart
+    2: repeat
+    3: copy_number
+    4: size
+    5: genome_start
+    6: genome_end
+    7: genotype
+    """
     tsv_headers = ['read',
                    'copy_number',
                    'size',
-                   #'repeat_unit',
                    'read_start',
-                   'genotype',
-                   'chrom_start',
-                   'chrom_end']
+                   'allele',
+                   ]
 
-    def __init__(self, read, read_pos, repeat_unit, copy_number, seq, chrom_start, chrom_end):
-        self.read = read
-        self.read_pos = read_pos
-        self.repeat_unit = repeat_unit
-        self.copy_number = copy_number
-        self.seq = seq
-        self.chrom_start = chrom_start
-        self.chrom_end = chrom_end
-        self.genotype = None
-
-    def as_tsv(self):
-        cols = [self.read,
-                self.copy_number,
-                len(self.seq),
-                #self.repeat_unit,
-                self.read_pos,
-                self.genotype,
-                self.chrom_start,
-                self.chrom_end]
-
-        return map(str, cols)
+    @classmethod
+    def to_tsv(cls, cols):
+        # __init__ input order to output order
+        cols_ordered = [cols[0],
+                        cols[3],
+                        cols[4],
+                        cols[1],
+                        cols[7],
+                        ]
+        return list(map(str, cols_ordered))
