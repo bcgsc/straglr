@@ -385,8 +385,6 @@ class TREFinder:
 
         tuples_in_range = [p for p in aln.aligned_pairs if p[1] is not None and p[1] >= tstart and p[1] <= tend and p[0] is not None]
 
-        print('zz', aln.query_name, tcoord, search_direction, len(tuples_in_range), len(tuples_in_range)/max_extend)
-
 
     def extract_subseq(self, aln, target_start, target_end, reads_fasta=None, max_extend=50):
         tstart = None
@@ -408,7 +406,6 @@ class TREFinder:
             if aln_tuple:
                 qend, tend = aln_tuple
 
-        print('qq', aln.query_name, target_start, target_end, tstart, tend, qstart, qend, max_extend)
         if qstart is not None and qend is not None:
             if not reads_fasta:
                 seq = aln.query_sequence[qstart:qend]
@@ -550,7 +547,6 @@ class TREFinder:
             for result in results[seq]:
                 if len(result[13]) >= self.min_str_len and len(result[13]) <= self.max_str_len:
                     for pat in expected_pats:
-                        print('qq', read, result[:2], result[13], pat, self.is_same_repeat((result[13], pat), same_pats=same_pats[locus]))
                         if self.is_same_repeat((result[13], pat), same_pats=same_pats[locus]):
                             results_matched.append(result)
                             continue
@@ -565,12 +561,10 @@ class TREFinder:
                 if len(combined_coords) > 1:
                     combined_coords.sort(key=lambda c:c[1]-c[0], reverse=True)
 
-                print('cc', read, combined_coords, len(repeat_seqs[seq]), flank, min_span, len(repeat_seqs[seq]) - 2 * flank)
                 if combined_coords:
                     #covered = True
                     check_seq_len = abs(len(repeat_seqs[seq]) - 2 * flank)
                     span = float(combined_coords[0][1] - combined_coords[0][0] + 1)
-                    #print('cc1', read, span, check_seq_len, span/check_seq_len)
                     #if check_seq_len < 300:
                         #min_span = 0.3
                     #covered = (span / check_seq_len) >= min_span
