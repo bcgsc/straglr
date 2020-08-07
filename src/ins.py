@@ -117,7 +117,6 @@ class INSFinder:
     @classmethod
     def is_uniquely_mapped(cls, aln, max_clipping_allowed=0.05):
         closeness_to_end = aln.infer_read_length() * max_clipping_allowed
-        #print('qq', aln.query_name, closeness_to_end, aln.query_alignment_start, aln.query_alignment_end, aln.query_length, aln.infer_read_length(), aln.query_alignment_length, float(aln.query_alignment_length) / aln.infer_read_length(), aln.has_tag('SA'))
         if float(aln.query_alignment_length) / aln.infer_read_length() > 0.5 and not aln.has_tag('SA'):
             return True
         if aln.query_alignment_start <= closeness_to_end and\
