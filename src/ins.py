@@ -126,13 +126,16 @@ class INSFinder:
 
     @classmethod
     def get_seq(cls, fasta, name, reverse, coords=None):
-        seq = fasta.fetch(name)
-        if reverse:
-            seq = reverse_complement(seq)
-        if coords:
-            return seq[coords[0]:coords[1]]
-        else:
-            return seq
+        try:
+            seq = fasta.fetch(name)
+            if reverse:
+                seq = reverse_complement(seq)
+            if coords:
+                return seq[coords[0]:coords[1]]
+            else:
+                return seq
+        except:
+            return None
 
     def examine_regions(self, regions):
         """worker wrapper for examine_region"""
