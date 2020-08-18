@@ -132,7 +132,6 @@ class TREFinder:
             grouped_results[read][read_type] = results[seq]
 
         expansions = self.analyze_trf(grouped_results, target_flank)
-        print('uue', expansions)
 
         if self.remove_tmps:
             self.cleanup()
@@ -150,7 +149,6 @@ class TREFinder:
             eid, ins_len, gstart, gend = seq_id.rsplit('.', 3)
 
             if 't' in results[seq_id]:
-                print('uu1', seq_id)
                 pat, pgstart, pgend = self.analyze_trf_per_seq(results[seq_id], int(ins_len), int(gstart), int(gend), same_pats, target_flank, full_cov=full_cov)
                 if pat is not None:
                     expansions[eid] = pat, pgstart, pgend
@@ -285,22 +283,18 @@ class TREFinder:
                     # check for identical repeats first
                     for i in range(len(filtered_results['t'])):
                         r = filtered_results['t'][i]
-                        print('uui', r, i_pat, self.is_same_repeat((i_pat, r[13]), min_fraction=1), dist_from_mid[i], dist_from_mid_picked)
                         if self.is_same_repeat((i_pat, r[13]), min_fraction=1):
                             if dist_from_mid_picked is None or dist_from_mid[i] < dist_from_mid_picked:
                                pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
                                dist_from_mid_picked = dist_from_mid[i]
-                               print('uu', r, i_pat, pgstart, pgend, pattern_matched)
             
                     if pgstart is None:
                         for i in range(len(filtered_results['t'])):
                             r = filtered_results['t'][i]
-                            print('uub', r, i_pat, self.is_same_repeat((i_pat, r[13]), same_pats), dist_from_mid[i], dist_from_mid_picked)
                             if i_pat in r[13] or r[13] in i_pat or self.is_same_repeat((i_pat, r[13]), same_pats):
                                 if dist_from_mid_picked is None or dist_from_mid[i] < dist_from_mid_picked:
                                     pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
                                     dist_from_mid_picked = dist_from_mid[i]
-                                    print('uu', r, i_pat, pgstart, pgend, pattern_matched)
 
                 break
 
@@ -320,7 +314,6 @@ class TREFinder:
                 mid = float(gstart + gend) / 2
                 pgstart, pgend = int(math.floor(mid)), int(math.ceil(mid))
 
-        print('uu3', pattern_matched, pgstart, pgend)
         return pattern_matched, pgstart, pgend
 
     def annotate(self, ins_list, expansions):
@@ -406,6 +399,10 @@ class TREFinder:
             if aln_tuple:
                 qend, tend = aln_tuple
 
+        if aln.cigartuples[0][0] == 5:
+            qstart += aln.cigartuples[0][1]
+            qend += aln.cigartuples[0][1]
+
         if qstart is not None and qend is not None:
             if not reads_fasta:
                 seq = aln.query_sequence[qstart:qend]
@@ -456,7 +453,7 @@ class TREFinder:
             same_pats[locus] = None
             targets[locus] |= set(patterns[seq].split(','))
             for result in results[seq]:
-                if len(result[13]) >= min_len:
+                if len(result[13]) >= min_len or (len(patterns[seq]) >= 6 and len(result[13]) >= 0.5 * len(patterns[seq])):
                     queries[locus].add(result[13])
 
         for locus in queries.keys():
@@ -467,16 +464,24 @@ class TREFinder:
 
         return same_pats
 
-    def align_patterns(self, queries, targets, locus=None, word_size=9):
+    def align_patterns(self, queries, targets, locus=None, word_size=5):
         query_fa = ''
+        min_len = None
         for seq in queries:
+            if min_len is None or len(seq) < min_len:
+                min_len = len(seq)
             for i in range(0, len(seq), 5):
                 pat = seq[i:] + seq[:i]
                 query_fa += '>{}\n{}\n'.format(pat, pat)
 
         target_fa = ''
         for seq in targets:
+            if min_len is None or len(seq) < min_len:
+                min_len = len(seq)
             target_fa += '>{}\n{}\n'.format(seq, seq)
+
+        if min_len - 1 < word_size and min_len - 1 > 2:
+            word_size = min_len - 1
 
         query_file = create_tmp_file(query_fa)
         target_file = create_tmp_file(target_fa)
@@ -565,8 +570,8 @@ class TREFinder:
                     #covered = True
                     check_seq_len = abs(len(repeat_seqs[seq]) - 2 * flank)
                     span = float(combined_coords[0][1] - combined_coords[0][0] + 1)
-                    #if check_seq_len < 300:
-                        #min_span = 0.3
+                    if check_seq_len < 50:
+                        min_span = 0.2
                     #covered = (span / check_seq_len) >= min_span
 
                     if check_seq_len == 0 or (span / check_seq_len) < min_span:
@@ -694,7 +699,7 @@ class TREFinder:
         min_mapped = 0.5
 
         if self.strict:
-            self.trf_flank_size = 50
+            self.trf_flank_size = 80
 
         for locus in loci:
             clipped = defaultdict(dict)
@@ -748,6 +753,10 @@ class TREFinder:
                                 seq = INSFinder.get_seq(reads_fasta, aln1.query_name, aln1.is_reverse, [qstart, qend])
                             alns.remove(aln1)
                             alns.remove(aln2)
+
+                            if not seq:
+                                print('problem getting seq2 {} {}'.format(aln.query_name, locus))
+                                continue
                         else:
                             print('problem getting seq2 {} {}'.format(aln.query_name, locus))
                             continue
@@ -770,7 +779,7 @@ class TREFinder:
                 else:
                     clipped_end = list(clipped[read].keys())[0]
                     aln = clipped[read][clipped_end][0]
-                    alns.remove(aln)
+                    #alns.remove(aln)
 
             for read in remove:
                 del clipped[read]
