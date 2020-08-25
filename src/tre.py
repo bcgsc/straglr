@@ -464,6 +464,34 @@ class TREFinder:
 
         return same_pats
 
+    def run_blastn(self, query_fa, target_fa, word_size):
+        query_file = create_tmp_file(query_fa)
+        target_file = create_tmp_file(target_fa)
+        blastn_out = create_tmp_file('')
+        #print('blastn {} {} {}'.format(query_file, target_file, blastn_out))
+        '''
+        self.tmp_files.add(query_file)
+        self.tmp_files.add(target_file)
+        self.tmp_files.add(blastn_out)
+        '''
+
+        cmd = ' '.join(['blastn',
+                        '-query',
+                        query_file,
+                        '-subject',
+                        target_file,
+                        '-task blastn -word_size {} -outfmt 6 -out'.format(word_size),
+                        blastn_out])
+        print(cmd)
+        # redirect stdout and stderr to devnull
+        FNULL = open(os.devnull, 'w')
+        returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
+
+        if os.path.exists(blastn_out):
+            return blastn_out
+        else:
+            sys.exit('cannot run {}'.format(cmd))
+    
     def align_patterns(self, queries, targets, locus=None, word_size=5):
         query_fa = ''
         min_len = None
@@ -684,10 +712,127 @@ class TREFinder:
 
         return variants
 
+    def extract_missed_clipped(self, aln, clipped_end, min_proportion=0.4, reads_fasta=None):
+        clipped_size = None
+        if clipped_end == 'start' and aln.cigartuples[0][0] >= 4 and aln.cigartuples[0][0] <= 5:
+            clipped_size = aln.cigartuples[0][1]
+        elif clipped_end == 'end' and aln.cigartuples[-1][0] >= 4 and aln.cigartuples[-1][0] <= 5:
+            clipped_size = aln.cigartuples[-1][1]
+
+        print('qw', aln.query_name, clipped_end, clipped_size, clipped_size / aln.infer_read_length())
+        if clipped_size is not None:
+        #if clipped_size is not None and clipped_size / aln.infer_read_length() > min_proportion:
+            if clipped_end == 'start':
+                qstart, qend = 0, aln.query_alignment_start + self.trf_flank_size
+                tpos = aln.reference_start
+            else:
+                qstart, qend = aln.query_alignment_end - self.trf_flank_size, aln.infer_read_length()
+                tpos = aln.reference_end
+
+            seq = None
+            if not reads_fasta:
+                seq = aln.query_sequence[qstart:qend]
+            else:
+                if aln.cigartuples[0][0] == 5:
+                    qstart = aln.cigartuples[0][1] + qstart
+                seq = INSFinder.get_seq(reads_fasta, aln.query_name, aln.is_reverse, [qstart, qend])
+            print('test', aln.query_name, clipped_end, seq)
+            return qstart, qend, tpos, seq
+
+        return None
+            
+    def get_probe(self, clipped_end, locus, genome_fasta):
+        if clipped_end == 'start':
+            pend = locus[1] - 1
+            pstart = pend - self.trf_flank_size
+        else:
+            pstart = locus[2]
+            pend = pstart + self.trf_flank_size
+        pseq = genome_fasta.fetch(locus[0], pstart, pend)
+        return pstart, pend, pseq
+
+    def parse_blastn(self, blastn_out):
+        results = []
+        with open(blastn_out, 'r') as ff:
+            for line in ff:
+                cols = line.rstrip().split('\t')
+                query = cols[0]
+                subject = cols[1]
+                pid = float(cols[2])
+                alen = int(cols[3])
+                qstart = int(cols[6])
+                qend = int(cols[7])
+                sstart = int(cols[8])
+                send = int(cols[9])
+                evalue = float(cols[10])
+                results.append([query, subject, pid, alen, evalue, qstart, qend, sstart, send])
+
+        print('dd', blastn_out, len(results))
+        if results:
+            return sorted(results, key=itemgetter(4))
+        else:
+            return results
+
+    def rescue_missed_clipped(self, missed, genome_fasta, min_mapped=0.7, max_evalue=1e-10):
+        rescued = []
+        target_fa = ''
+        query_fa = ''
+        seqs = {}
+        loci = {}
+        for locus, clipped_end, read, qstart, qend, tpos, seq in missed:
+            target_fa += '>{}:{}:{}:{}:{}\n{}\n'.format(read, qstart, qend, tpos, len(seq), seq)
+            seqs[read] = seq
+            loci[read] = locus
+
+            pstart, pend, pseq = self.get_probe(clipped_end, locus, genome_fasta)
+            print('testp', locus[0], read, clipped_end, pstart, pend, pseq)
+            query_fa += '>{}:{}:{}:{}:{}\n{}\n'.format(read, clipped_end, pstart, pend, len(pseq), pseq)
+
+        blastn_out = self.run_blastn(query_fa, target_fa, 6)
+        if os.path.exists(blastn_out):
+            results = self.parse_blastn(blastn_out)
+            if results:
+                by_read = defaultdict(list)
+                # group blastn results
+                for r in results:
+                    if list(r[0].split(':'))[0] == list(r[1].split(':'))[0]:
+                        read = list(r[0].split(':'))[0]
+                        by_read[read].append(r)
+
+                for read in sorted(by_read.keys()):
+                    # filter results
+                    rlen = int(by_read[read][0][0].split(':')[-1])
+                    filtered_results = [r for r in by_read[read] if r[3] / rlen >= min_mapped and r[4] <= max_evalue]
+                    print('zz', read, rlen, filtered_results)
+                    if not filtered_results:
+                        continue
+                    best_result = filtered_results[0]
+                    print('zz2', read, best_result[3] / rlen)
+                    read, qstart, qend, tpos, tlen = best_result[1].split(':')
+                    read, clipped_end, pstart, pend, plen = best_result[0].split(':')
+                    print('vv1', read, clipped_end, qstart, qend, best_result)
+
+                    if clipped_end == 'start':
+                        qstart = int(qstart) + best_result[-2]
+                        tstart = int(pstart)
+                        tend = int(tpos)
+                        trf_seq = seqs[read][best_result[-2]:]
+                    else:
+                        qend = int(qstart) + best_result[-1]
+                        tstart = int(tpos)
+                        tend = int(pend)
+                        trf_seq = seqs[read][:best_result[-1]]
+
+                    print('vv', read, clipped_end, qstart, qend, tstart, tend, trf_seq)
+                    rescued.append([read, clipped_end, qstart, qend, tstart, tend, trf_seq, loci[read]])
+
+        return rescued
+
     def get_alleles(self, loci, reads_fasta=None, closeness_to_end=200):
         bam = pysam.Samfile(self.bam, 'rb')
         if self.reads_fasta:
             reads_fasta = pysam.Fastafile(self.reads_fasta)
+        genome_fasta = pysam.Fastafile(self.genome_fasta)
 
         trf_input = ''
         strands = {}
@@ -723,16 +868,20 @@ class TREFinder:
                         check_end = 'start'
                     elif end_olap and not start_olap:
                         check_end = 'end'
+                    print('pp', aln.query_name, aln.reference_start, aln.reference_end, start_olap, end_olap)
                     clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end)
                     if clipped_end is not None:
                         clipped[aln.query_name][clipped_end] = (aln, partner_start)
 
             # clipped alignment
             remove = set()
+            missed_clipped = []
             for read in clipped.keys():
+                print('hh', read, clipped[read].keys())
                 if len(clipped[read].keys()) == 2:
                     aln1 = clipped[read]['end'][0]
                     aln2 = clipped[read]['start'][0]
+                    print('gg', read, aln1.reference_start, aln1.reference_end, aln2.reference_start, aln2.reference_end, aln1.query_alignment_start, aln1.query_alignment_end, aln2.query_alignment_start, aln2.query_alignment_end)
                     if reads_fasta or aln1.query_alignment_end < aln2.query_alignment_start:
                         aln1_tuple = self.extract_aln_tuple(aln1, locus[1] - self.trf_flank_size, 'left')
                         aln2_tuple = self.extract_aln_tuple(aln2, locus[2] + self.trf_flank_size, 'right')
@@ -740,6 +889,7 @@ class TREFinder:
                         qend = None
                         tstart = None
                         tend = None
+                        print('gg2', read, aln1_tuple, aln2_tuple)
                         if aln1_tuple and aln2_tuple:
                             qstart, tstart = aln1_tuple
                             qend, tend = aln2_tuple
@@ -754,11 +904,26 @@ class TREFinder:
                             alns.remove(aln1)
                             alns.remove(aln2)
 
+                            print('gg3', read)
                             if not seq:
                                 print('problem getting seq2 {} {}'.format(aln.query_name, locus))
                                 continue
                         else:
-                            print('problem getting seq2 {} {}'.format(aln.query_name, locus))
+                            print('gg4', read)
+                            print('problem getting seq2 {} {}'.format(aln1.query_name, locus))
+
+                            if aln1.query_alignment_length > aln2.query_alignment_length:
+                                clipped_end = 'end'
+                                aln = aln1
+                            else:
+                                clipped_end = 'start'
+                                aln = aln2
+
+                            missed = self.extract_missed_clipped(aln, clipped_end)
+                            print('cc', aln.reference_start, clipped_end, missed)
+                            if missed:
+                                qstart, qend, tpos, seq = missed
+                                missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
                             continue
 
                         # leave patterns out, some too long for trf header
@@ -779,7 +944,31 @@ class TREFinder:
                 else:
                     clipped_end = list(clipped[read].keys())[0]
                     aln = clipped[read][clipped_end][0]
+
+                    missed = self.extract_missed_clipped(aln, clipped_end)
+                    if missed:
+                        qstart, qend, tpos, seq = missed
+                        missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
+                        '''
+                        pstart, pend, pseq = self.get_probe(clipped_end, locus, genome_fasta)
+                        print('testp', locus[0], pstart, pend, pseq)
+                        matches = self.parse_pat_blastn('probes.blastn')
+                        print('testb', matches)
+                        '''
                     #alns.remove(aln)
+
+            if missed_clipped:
+                rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
+                for read, clipped_end, qstart, qend, tstart, tend, seq, locus in rescued:
+                    aln = clipped[read][list(clipped[read].keys())[0]][0]
+                    header, fa_entry = self.create_trf_fasta(locus[:3], read, tstart, tend, qstart, seq, aln.infer_read_length())
+                    patterns[header] = locus[-1]
+                    repeat_seqs[header] = seq
+
+                    if not '*' in locus[-1]:
+                        trf_input += fa_entry
+                    else:
+                        generic.add(header)
 
             for read in remove:
                 del clipped[read]
