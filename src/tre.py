@@ -736,7 +736,6 @@ class TREFinder:
                 if aln.cigartuples[0][0] == 5:
                     qstart = aln.cigartuples[0][1] + qstart
                 seq = INSFinder.get_seq(reads_fasta, aln.query_name, aln.is_reverse, [qstart, qend])
-            print('test', aln.query_name, clipped_end, seq)
             return qstart, qend, tpos, seq
 
         return None
@@ -767,7 +766,6 @@ class TREFinder:
                 evalue = float(cols[10])
                 results.append([query, subject, pid, alen, evalue, qstart, qend, sstart, send])
 
-        print('dd', blastn_out, len(results))
         if results:
             return sorted(results, key=itemgetter(4))
         else:
@@ -785,7 +783,6 @@ class TREFinder:
             loci[read] = locus
 
             pstart, pend, pseq = self.get_probe(clipped_end, locus, genome_fasta)
-            print('testp', locus[0], read, clipped_end, pstart, pend, pseq)
             query_fa += '>{}:{}:{}:{}:{}\n{}\n'.format(read, clipped_end, pstart, pend, len(pseq), pseq)
 
         blastn_out = self.run_blastn(query_fa, target_fa, 6)
@@ -803,14 +800,11 @@ class TREFinder:
                     # filter results
                     rlen = int(by_read[read][0][0].split(':')[-1])
                     filtered_results = [r for r in by_read[read] if r[3] / rlen >= min_mapped and r[4] <= max_evalue]
-                    print('zz', read, rlen, filtered_results)
                     if not filtered_results:
                         continue
                     best_result = filtered_results[0]
-                    print('zz2', read, best_result[3] / rlen)
                     read, qstart, qend, tpos, tlen = best_result[1].split(':')
                     read, clipped_end, pstart, pend, plen = best_result[0].split(':')
-                    print('vv1', read, clipped_end, qstart, qend, best_result)
 
                     if clipped_end == 'start':
                         qstart = int(qstart) + best_result[-2]
@@ -823,7 +817,6 @@ class TREFinder:
                         tend = int(pend)
                         trf_seq = seqs[read][:best_result[-1]]
 
-                    print('vv', read, clipped_end, qstart, qend, tstart, tend, trf_seq)
                     rescued.append([read, clipped_end, qstart, qend, tstart, tend, trf_seq, loci[read]])
 
         return rescued
@@ -868,7 +861,6 @@ class TREFinder:
                         check_end = 'start'
                     elif end_olap and not start_olap:
                         check_end = 'end'
-                    print('pp', aln.query_name, aln.reference_start, aln.reference_end, start_olap, end_olap)
                     clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end)
                     if clipped_end is not None:
                         clipped[aln.query_name][clipped_end] = (aln, partner_start)
@@ -877,11 +869,9 @@ class TREFinder:
             remove = set()
             missed_clipped = []
             for read in clipped.keys():
-                print('hh', read, clipped[read].keys())
                 if len(clipped[read].keys()) == 2:
                     aln1 = clipped[read]['end'][0]
                     aln2 = clipped[read]['start'][0]
-                    print('gg', read, aln1.reference_start, aln1.reference_end, aln2.reference_start, aln2.reference_end, aln1.query_alignment_start, aln1.query_alignment_end, aln2.query_alignment_start, aln2.query_alignment_end)
                     if reads_fasta or aln1.query_alignment_end < aln2.query_alignment_start:
                         aln1_tuple = self.extract_aln_tuple(aln1, locus[1] - self.trf_flank_size, 'left')
                         aln2_tuple = self.extract_aln_tuple(aln2, locus[2] + self.trf_flank_size, 'right')
@@ -889,7 +879,6 @@ class TREFinder:
                         qend = None
                         tstart = None
                         tend = None
-                        print('gg2', read, aln1_tuple, aln2_tuple)
                         if aln1_tuple and aln2_tuple:
                             qstart, tstart = aln1_tuple
                             qend, tend = aln2_tuple
@@ -904,14 +893,10 @@ class TREFinder:
                             alns.remove(aln1)
                             alns.remove(aln2)
 
-                            print('gg3', read)
                             if not seq:
                                 print('problem getting seq2 {} {}'.format(aln.query_name, locus))
                                 continue
                         else:
-                            print('gg4', read)
-                            print('problem getting seq2 {} {}'.format(aln1.query_name, locus))
-
                             if aln1.query_alignment_length > aln2.query_alignment_length:
                                 clipped_end = 'end'
                                 aln = aln1
@@ -920,7 +905,6 @@ class TREFinder:
                                 aln = aln2
 
                             missed = self.extract_missed_clipped(aln, clipped_end)
-                            print('cc', aln.reference_start, clipped_end, missed)
                             if missed:
                                 qstart, qend, tpos, seq = missed
                                 missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
@@ -949,12 +933,6 @@ class TREFinder:
                     if missed:
                         qstart, qend, tpos, seq = missed
                         missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
-                        '''
-                        pstart, pend, pseq = self.get_probe(clipped_end, locus, genome_fasta)
-                        print('testp', locus[0], pstart, pend, pseq)
-                        matches = self.parse_pat_blastn('probes.blastn')
-                        print('testb', matches)
-                        '''
                     #alns.remove(aln)
 
             if missed_clipped:
