@@ -450,10 +450,11 @@ class TREFinder:
             if len(cols) < 7:
                 continue
             locus = tuple(cols[:3])
+            seq_len = int(cols[-3])
             same_pats[locus] = None
             targets[locus] |= set(patterns[seq].split(','))
             for result in results[seq]:
-                if len(result[13]) >= min_len or (len(patterns[seq]) >= 6 and len(result[13]) >= 0.5 * len(patterns[seq])):
+                if len(result[13]) >= min_len or (seq_len - 2*self.trf_flank_size < 50 and len(patterns[seq]) >= 6 and len(result[13]) >= 0.5 * len(patterns[seq])):
                     queries[locus].add(result[13])
 
         for locus in queries.keys():
@@ -469,11 +470,9 @@ class TREFinder:
         target_file = create_tmp_file(target_fa)
         blastn_out = create_tmp_file('')
         #print('blastn {} {} {}'.format(query_file, target_file, blastn_out))
-        '''
         self.tmp_files.add(query_file)
         self.tmp_files.add(target_file)
         self.tmp_files.add(blastn_out)
-        '''
 
         cmd = ' '.join(['blastn',
                         '-query',
