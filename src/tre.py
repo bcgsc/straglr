@@ -175,7 +175,7 @@ class TREFinder:
                 queries |= all_pats[seq_id]['query']
                 targets |= all_pats[seq_id]['target']
                 blastn_out = self.align_patterns(queries, targets, word_size=4)
-                if os.path.exists(blastn_out):
+                if blastn_out and os.path.exists(blastn_out):
                     results = self.parse_pat_blastn(blastn_out)
                     if results:
                         for query in results.keys():
@@ -460,7 +460,7 @@ class TREFinder:
         for locus in queries.keys():
             if locus in queries and locus in targets:
                 blastn_out = self.align_patterns(queries[locus], targets[locus], locus=locus)
-                if os.path.exists(blastn_out):
+                if blastn_out and os.path.exists(blastn_out):
                     same_pats[locus] = self.parse_pat_blastn(blastn_out)
 
         return same_pats
@@ -491,10 +491,12 @@ class TREFinder:
         else:
             sys.exit('cannot run {}'.format(cmd))
     
-    def align_patterns(self, queries, targets, locus=None, word_size=5):
+    def align_patterns(self, queries, targets, locus=None, word_size=5, min_word_size=4):
         query_fa = ''
         min_len = None
         for seq in queries:
+            if len(seq) - 1 < min_word_size:
+                continue
             if min_len is None or len(seq) < min_len:
                 min_len = len(seq)
             for i in range(0, len(seq), 5):
@@ -503,37 +505,39 @@ class TREFinder:
 
         target_fa = ''
         for seq in targets:
+            if len(seq) - 1 < min_word_size:
+                continue
             if min_len is None or len(seq) < min_len:
                 min_len = len(seq)
             target_fa += '>{}\n{}\n'.format(seq, seq)
 
-        if min_len - 1 < word_size and min_len - 1 > 2:
-            word_size = min_len - 1
+        if query_fa and target_fa:
+            if min_len - 1 < word_size:
+                word_size = min_len - 1
 
-        query_file = create_tmp_file(query_fa)
-        target_file = create_tmp_file(target_fa)
-        blastn_out = create_tmp_file('')
-        print('blastn {} {} {} {}'.format(locus, query_file, target_file, blastn_out))
-        self.tmp_files.add(query_file)
-        self.tmp_files.add(target_file)
-        self.tmp_files.add(blastn_out)
+            query_file = create_tmp_file(query_fa)
+            target_file = create_tmp_file(target_fa)
+            blastn_out = create_tmp_file('')
+            self.tmp_files.add(query_file)
+            self.tmp_files.add(target_file)
+            self.tmp_files.add(blastn_out)
 
-        cmd = ' '.join(['blastn',
-                        '-query',
-                        query_file,
-                        '-subject',
-                        target_file,
-                        '-task blastn -word_size {} -outfmt 6 -out'.format(word_size),
-                        blastn_out])
-        print(cmd)
-        # redirect stdout and stderr to devnull
-        FNULL = open(os.devnull, 'w')
-        returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
+            cmd = ' '.join(['blastn',
+                            '-query',
+                            query_file,
+                            '-subject',
+                            target_file,
+                            '-task blastn -word_size {} -outfmt 6 -out'.format(word_size),
+                            blastn_out])
+            print(cmd)
+            # redirect stdout and stderr to devnull
+            FNULL = open(os.devnull, 'w')
+            returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
 
-        if os.path.exists(blastn_out):
-            return blastn_out
-        else:
-            sys.exit('cannot run {}'.format(cmd))
+            if os.path.exists(blastn_out):
+                return blastn_out
+            else:
+                sys.exit('cannot run {}'.format(cmd))
 
     def parse_pat_blastn(self, blastn_out, min_pid=0.8, min_alen=0.8):
         matches = defaultdict(set)
@@ -619,6 +623,18 @@ class TREFinder:
                     pats = set([r[-2] for r in results_matched])
                     genome_start = int(gstart) + coords[0]
                     genome_end = int(gend) - (seq_len - coords[-1])
+
+                    # match given coordinates, but coords have to make sense first
+                    if self.strict and genome_start < genome_end:
+                        if genome_start < int(locus[1]):
+                            diff = int(locus[1]) - genome_start
+                            genome_start = int(locus[1])
+                            rpos += diff
+                            size -= diff
+                        if genome_end > int(locus[2]):
+                            diff = genome_end - int(locus[2])
+                            genome_end = int(locus[2])
+                            size -= diff
 
                     print('ff {} {} {} {} {} {} {} {} {} {}'.format(read, locus, size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end))
                     if not read in alleles[locus]:
@@ -711,7 +727,7 @@ class TREFinder:
 
         return variants
 
-    def extract_missed_clipped(self, aln, clipped_end, min_proportion=0.4, reads_fasta=None):
+    def extract_missed_clipped(self, aln, clipped_end, gpos, min_proportion=0.4, reads_fasta=None):
         clipped_size = None
         if clipped_end == 'start' and aln.cigartuples[0][0] >= 4 and aln.cigartuples[0][0] <= 5:
             clipped_size = aln.cigartuples[0][1]
@@ -724,9 +740,19 @@ class TREFinder:
             if clipped_end == 'start':
                 qstart, qend = 0, aln.query_alignment_start + self.trf_flank_size
                 tpos = aln.reference_start
+                tup = self.extract_aln_tuple(aln, gpos[1] + self.trf_flank_size, 'right')
+                print('yy', aln.query_name, tup)
+                if tup:
+                    qstart, qend = 0, tup[0]
+                    tpos = tup[1]
             else:
                 qstart, qend = aln.query_alignment_end - self.trf_flank_size, aln.infer_read_length()
                 tpos = aln.reference_end
+                tup = self.extract_aln_tuple(aln, gpos[0] - self.trf_flank_size, 'left')
+                print('ee', aln.query_name, tup)
+                if tup:
+                    qstart, qend = tup[0], aln.infer_read_length()
+                    tpos = tup[1]
 
             seq = None
             if not reads_fasta:
@@ -902,13 +928,12 @@ class TREFinder:
                             else:
                                 clipped_end = 'start'
                                 aln = aln2
-
-                            missed = self.extract_missed_clipped(aln, clipped_end)
+                            missed = self.extract_missed_clipped(aln, clipped_end, locus[1:])
                             if missed:
                                 qstart, qend, tpos, seq = missed
                                 missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
                             continue
-
+   
                         # leave patterns out, some too long for trf header
                         header, fa_entry = self.create_trf_fasta(locus[:3], aln1.query_name, tstart, tend, qstart, seq, aln1.infer_read_length())
                         patterns[header] = locus[-1]
@@ -927,13 +952,12 @@ class TREFinder:
                 else:
                     clipped_end = list(clipped[read].keys())[0]
                     aln = clipped[read][clipped_end][0]
-
-                    missed = self.extract_missed_clipped(aln, clipped_end)
+                    missed = self.extract_missed_clipped(aln, clipped_end, locus[1:])
                     if missed:
                         qstart, qend, tpos, seq = missed
                         missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
                     #alns.remove(aln)
-
+        
             if missed_clipped:
                 rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
                 for read, clipped_end, qstart, qend, tstart, tend, seq, locus in rescued:
