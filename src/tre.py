@@ -734,14 +734,13 @@ class TREFinder:
         elif clipped_end == 'end' and aln.cigartuples[-1][0] >= 4 and aln.cigartuples[-1][0] <= 5:
             clipped_size = aln.cigartuples[-1][1]
 
-        print('qw', aln.query_name, clipped_end, clipped_size, clipped_size / aln.infer_read_length())
+        #print('qw', aln.query_name, clipped_end, clipped_size, clipped_size / aln.infer_read_length())
         if clipped_size is not None:
         #if clipped_size is not None and clipped_size / aln.infer_read_length() > min_proportion:
             if clipped_end == 'start':
                 qstart, qend = 0, aln.query_alignment_start + self.trf_flank_size
                 tpos = aln.reference_start
                 tup = self.extract_aln_tuple(aln, gpos[1] + self.trf_flank_size, 'right')
-                print('yy', aln.query_name, tup)
                 if tup:
                     qstart, qend = 0, tup[0]
                     tpos = tup[1]
@@ -749,7 +748,6 @@ class TREFinder:
                 qstart, qend = aln.query_alignment_end - self.trf_flank_size, aln.infer_read_length()
                 tpos = aln.reference_end
                 tup = self.extract_aln_tuple(aln, gpos[0] - self.trf_flank_size, 'left')
-                print('ee', aln.query_name, tup)
                 if tup:
                     qstart, qend = tup[0], aln.infer_read_length()
                     tpos = tup[1]
