@@ -1058,7 +1058,7 @@ class TREFinder:
                 for variant in variants:
                     Variant.update_coords(variant)
 
-                return [v for v in variants if Variant.above_min_expansion(v, min_expansion)]
+                return [v for v in variants if Variant.above_min_expansion(v, min_expansion, self.min_support)]
 
         return []
 

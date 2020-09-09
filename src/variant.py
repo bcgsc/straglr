@@ -95,12 +95,17 @@ class Variant:
         return list(map(str, cols))
 
     @classmethod
-    def above_min_expansion(cls, variant, min_expansion):
+    def above_min_expansion(cls, variant, min_expansion, min_reads):
         ref_size = int(variant[2]) - int(variant[1]) + 1
 
         if variant[5]:
             max_allele_size = sorted(variant[5])[-1]
-            return max_allele_size - ref_size >= min_expansion
+
+            alleles = [a for a in variant[3] if a[7] == max_allele_size and a[4] - ref_size >= min_expansion]
+            #sizes = [a[4] for a in variant[3] if a[7] == max_allele_size]
+            #print('cc', variant, min_reads, len(variant[3]), len(alleles), len(alleles)>min_reads, np.median(sizes), np.median(sizes) - ref_size >min_expansion)
+            return len(alleles) > min_reads
+            #return max_allele_size - ref_size >= min_expansion
         else:
             return False
 
