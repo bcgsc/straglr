@@ -654,7 +654,7 @@ class TREFinder:
             grouped_reads[(chrom, start, end)].append(read)
 
         read_seqs = {}
-        for region, reads in grouped_reads.iteritems():
+        for region, reads in grouped_reads.items():
             for aln in bam.fetch(region[0], int(region[1]), int(region[2])):
                 if aln.query_name in reads:
                     read_seqs[aln.query_name] = aln.query_sequence
@@ -686,7 +686,7 @@ class TREFinder:
                 print('ff {} {} {} {}'.format(read, locus, size, rpos))
 
                 if not read in alleles[locus]:
-                    alleles[tuple(locus)][read] = (rpos, pats, size)
+                    alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]))
 
         return self.alleles_to_variants(alleles)
 
