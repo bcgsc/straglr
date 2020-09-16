@@ -625,16 +625,18 @@ class TREFinder:
                     genome_end = int(gend) - (seq_len - coords[-1])
 
                     # match given coordinates, but coords have to make sense first
-                    if self.strict and genome_start < genome_end:
+                    if self.strict and genome_start < genome_end and size > 50:
                         if genome_start < int(locus[1]):
                             diff = int(locus[1]) - genome_start
-                            genome_start = int(locus[1])
-                            rpos += diff
-                            size -= diff
+                            if diff < size:
+                                genome_start = int(locus[1])
+                                rpos += diff
+                                size -= diff
                         if genome_end > int(locus[2]):
                             diff = genome_end - int(locus[2])
-                            genome_end = int(locus[2])
-                            size -= diff
+                            if diff < size:
+                                genome_end = int(locus[2])
+                                size -= diff
 
                     print('ff {} {} {} {} {} {} {} {} {} {}'.format(read, locus, size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end))
                     if not read in alleles[locus]:
