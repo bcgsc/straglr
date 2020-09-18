@@ -428,6 +428,8 @@ class TREFinder:
                 coords.extend([m.start(), m.start() + len(repeat) - 1])
                 pattern = seq[m.start():m.start() + len(repeat)]
                 pat_counts.update([pattern])
+        if not coords:
+            return None, None, None
         sorted_coords = sorted(coords)
         return float(sorted_coords[-1] - sorted_coords[0] + 1) / len(seq) >= min_cov,\
                (sorted_coords[0], sorted_coords[-1]),\
@@ -677,8 +679,8 @@ class TREFinder:
             repeat_seq = repeat_seqs[header][flank:-1*flank]
             repeat = patterns[header]
             has_repeat, rspan, pats = self.examine_repeats(repeat_seq, repeat)
-            matched_seq = repeat_seq[rspan[0] : rspan[1] + 1]
             if has_repeat and pats:
+                matched_seq = repeat_seq[rspan[0] : rspan[1] + 1]
                 locus = tuple(cols[:3])
                 read_seq = read_seqs[read]
                 rpos = read_seq.find(matched_seq)
@@ -897,6 +899,8 @@ class TREFinder:
                 if len(clipped[read].keys()) == 2:
                     aln1 = clipped[read]['end'][0]
                     aln2 = clipped[read]['start'][0]
+                    if aln1.is_reverse != aln2.is_reverse:
+                        continue
                     if reads_fasta or aln1.query_alignment_end < aln2.query_alignment_start:
                         aln1_tuple = self.extract_aln_tuple(aln1, locus[1] - self.trf_flank_size, 'left')
                         aln2_tuple = self.extract_aln_tuple(aln2, locus[2] + self.trf_flank_size, 'right')
