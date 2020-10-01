@@ -471,7 +471,6 @@ class TREFinder:
         query_file = create_tmp_file(query_fa)
         target_file = create_tmp_file(target_fa)
         blastn_out = create_tmp_file('')
-        #print('blastn {} {} {}'.format(query_file, target_file, blastn_out))
         self.tmp_files.add(query_file)
         self.tmp_files.add(target_file)
         self.tmp_files.add(blastn_out)
@@ -483,7 +482,7 @@ class TREFinder:
                         target_file,
                         '-task blastn -word_size {} -outfmt 6 -out'.format(word_size),
                         blastn_out])
-        print(cmd)
+        #print(cmd)
         # redirect stdout and stderr to devnull
         FNULL = open(os.devnull, 'w')
         returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
@@ -738,7 +737,6 @@ class TREFinder:
         elif clipped_end == 'end' and aln.cigartuples[-1][0] >= 4 and aln.cigartuples[-1][0] <= 5:
             clipped_size = aln.cigartuples[-1][1]
 
-        #print('qw', aln.query_name, clipped_end, clipped_size, clipped_size / aln.infer_read_length())
         if clipped_size is not None:
         #if clipped_size is not None and clipped_size / aln.infer_read_length() > min_proportion:
             if clipped_end == 'start':
