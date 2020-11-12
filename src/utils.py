@@ -5,8 +5,9 @@ import os
 
 def split_tasks(args, n):
     k, m = divmod(len(args), n)
-    return (args[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n))
-                
+    batches = (args[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n))
+    return [b for b in batches if b]
+
 def parallel_process(func, args, nprocs, bam=None, fasta=None):
     p = Pool(nprocs)
     if bam is not None and fasta is not None:
