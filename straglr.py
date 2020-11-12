@@ -45,6 +45,7 @@ def main():
                            max_num_clusters=args.max_num_clusters,
                            remove_tmps=not args.debug)
 
+    variants = []
     if not args.loci:
         ins_finder = INSFinder(args.bam,
                                args.genome_fasta,
@@ -60,7 +61,8 @@ def main():
         ins = ins_finder.find_ins()
 
         # find ins that are str
-        variants = tre_finder.examine_ins(ins, min_expansion=args.min_ins_size)
+        if ins:
+            variants = tre_finder.examine_ins(ins, min_expansion=args.min_ins_size)
 
     else:
         variants = tre_finder.genotype(args.loci)
