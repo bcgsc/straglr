@@ -1036,6 +1036,8 @@ class TREFinder:
             print('gg {}'.format(len(ins_list)))
             random.shuffle(ins_list)
             batches = list(split_tasks(ins_list, self.nprocs))
+            if not batches:
+                return []
             batched_results = parallel_process(self.extract_tres, batches, self.nprocs)
             expansions = combine_batch_results(batched_results, type(batched_results[0]))
         else:
