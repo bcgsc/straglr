@@ -172,6 +172,8 @@ class INSFinder:
 
         clipped_pairs = defaultdict(dict)
         for aln in bam.fetch(region[0], int(region[1]), int(region[2])):
+            if reads_fasta is None and not aln.query_sequence:
+                continue
             if self.check_split_alignments:
                 clipped_end, partner_start = self.is_split_aln_potential_ins(aln)
                 if clipped_end is not None:

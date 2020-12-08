@@ -868,6 +868,8 @@ class TREFinder:
             clipped = defaultdict(dict)
             alns = []
             for aln in bam.fetch(locus[0], locus[1] - split_neighbour_size, locus[2] + split_neighbour_size):
+                if reads_fasta is None and not aln.query_sequence:
+                    continue
                 alns.append(aln)
                 locus_size = locus[2] - locus[1] + 1
 
