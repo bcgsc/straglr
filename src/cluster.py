@@ -66,6 +66,8 @@ class Cluster:
         models = [None for i in range(len(N))]
         AICs = []
         BICs = []
+        if len(set(x)) == 1:
+            return [x]
         for i in range(len(N)):
             models[i] = GaussianMixture(N[i]).fit(X)
         AIC = [m.aic(X) for m in models]
