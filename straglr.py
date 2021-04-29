@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument("--min_str_len", type=int, help="minimum STR length. Default:2", default=2)
     parser.add_argument("--max_num_clusters", type=int, help="maximum number of clusters to try. Default:3", default=3)
     parser.add_argument("--max_cov", type=int, help="maximum allowed coverage for ins inspection. Default:100", default=100)
+    parser.add_argument("--simple", action='store_true', help="output one locus per line")
     parser.add_argument("--debug", action='store_true', help="debug mode i.e. keep trf output")
     parser.add_argument("--version", action='version', version=__version__)
     args = parser.parse_args()
@@ -67,7 +68,10 @@ def main():
     else:
         variants = tre_finder.genotype(args.loci)
 
-    tre_finder.output(variants, args.out)
+    if args.simple:
+        tre_finder.output_summary(variants, args.out)
+    else:
+        tre_finder.output(variants, args.out)
 
 if __name__ == '__main__':
     main()

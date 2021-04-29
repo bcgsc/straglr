@@ -639,7 +639,7 @@ class TREFinder:
                                 genome_end = int(locus[2])
                                 size -= diff
 
-                    print('ff {} {} {} {} {} {} {} {} {} {}'.format(read, locus, size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end))
+                    #print('ff {} {} {} {} {} {} {} {} {} {}'.format(read, locus, size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end))
                     if not read in alleles[locus]:
                         if genome_start < genome_end:
                             alleles[tuple(locus)][read] = (rpos, pats, size, genome_start, genome_end)
@@ -1130,6 +1130,33 @@ class TREFinder:
                 for allele in sorted(variant[3], key=itemgetter(3), reverse=True):
                     allele_cols = Allele.to_tsv(allele)
                     out.write('{}\n'.format('\t'.join(variant_cols + allele_cols)))
+
+    def output_summary(self, variants, out_file):
+        with open(out_file, 'w') as out:
+            out.write('#{}\n'.format('\t'.join(Variant.tsv_headers + Allele.summary_headers)))
+            for variant in sorted(variants, key=itemgetter(0, 1, 2)):
+                if not variant[5]:
+                    continue
+                variant_cols = Variant.to_tsv(variant)
+
+                reads = []
+                cns = []
+                sizes = []
+                starts = []
+                alleles = sorted(variant[3], key=itemgetter(3), reverse=True)
+                for allele in sorted(variant[5], reverse=True):
+                    gg = [a for a in alleles if a[7] == allele]
+                    summary = Variant.summarize_alleles([a for a in alleles if a[7] == allele])
+                    reads.append(summary[0])
+                    cns.append(summary[1])
+                    sizes.append(summary[2])
+                    starts.append(summary[3])
+
+                out.write('{}\n'.format('\t'.join(variant_cols + [';'.join(reads),
+                                                                  ';'.join(cns),
+                                                                  ';'.join(sizes),
+                                                                  ';'.join(starts)]
+                                                                  )))
 
     def cleanup(self):
         if self.tmp_files:

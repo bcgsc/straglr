@@ -117,6 +117,20 @@ class Variant:
             variant[1] = int(np.median(genome_starts))
             variant[2] = int(np.median(genome_ends))
 
+    @classmethod
+    def summarize_alleles(cls, alleles):
+        reads = []
+        sizes = []
+        cns = []
+        starts = []
+        for allele in alleles:
+            reads.append(allele[0])
+            sizes.append(str(allele[4]))
+            cns.append(str(allele[3]))
+            starts.append(str(allele[1]))
+
+        return ','.join(reads), ','.join(cns), ','.join(sizes), ','.join(starts)
+
 class Allele:
     """
     0: read
@@ -134,6 +148,12 @@ class Allele:
                    'read_start',
                    'allele',
                    ]
+
+    summary_headers = ['reads',
+                       'copy_numbers',
+                       'sizes',
+                       'read_starts',
+                       ]
 
     @classmethod
     def to_tsv(cls, cols):
