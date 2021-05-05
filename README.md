@@ -9,7 +9,7 @@ Straglr can be installed via pip:
 ```
 pip install git+https://github.com/bcgsc/straglr.git#egg=straglr
 ```
-Straglr relies on [Tandem Repeat Finder(TRF)](https://tandem.bu.edu/trf/trf.html) for identifying TRs. (TRF executable must be in `$PATH`)
+Straglr depends on [Tandem Repeat Finder(TRF)](https://tandem.bu.edu/trf/trf.html) for identifying TRs and [blastn](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/) for motif matching. (TRF and blastn executables must be in `$PATH`)
 
 ## Input
 Long read alignments sorted by genomic coordindates in BAM format against the reference genome. Suggested aligner: [Minimap2](https://github.com/lh3/minimap2)
