@@ -399,11 +399,15 @@ class TREFinder:
             if aln_tuple:
                 qend, tend = aln_tuple
 
-        if aln.cigartuples[0][0] == 5:
-            qstart += aln.cigartuples[0][1]
-            qend += aln.cigartuples[0][1]
+        #if aln.cigartuples[0][0] == 5:
+            #qstart += aln.cigartuples[0][1]
+            #qend += aln.cigartuples[0][1]
 
         if qstart is not None and qend is not None:
+            if aln.cigartuples[0][0] == 5:
+                qstart += aln.cigartuples[0][1]
+                qend += aln.cigartuples[0][1]
+
             if not reads_fasta:
                 seq = aln.query_sequence[qstart:qend]
             else:
@@ -530,7 +534,7 @@ class TREFinder:
                             target_file,
                             '-task blastn -word_size {} -outfmt 6 -out'.format(word_size),
                             blastn_out])
-            print(cmd)
+            #print(cmd)
             # redirect stdout and stderr to devnull
             FNULL = open(os.devnull, 'w')
             returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
