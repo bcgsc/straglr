@@ -936,7 +936,7 @@ class TREFinder:
                             else:
                                 clipped_end = 'start'
                                 aln = aln2
-                            missed = self.extract_missed_clipped(aln, clipped_end, locus[1:])
+                            missed = self.extract_missed_clipped(aln, clipped_end, locus[1:], reads_fasta=reads_fasta)
                             if missed:
                                 qstart, qend, tpos, seq = missed
                                 missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
@@ -960,7 +960,7 @@ class TREFinder:
                 else:
                     clipped_end = list(clipped[read].keys())[0]
                     aln = clipped[read][clipped_end][0]
-                    missed = self.extract_missed_clipped(aln, clipped_end, locus[1:])
+                    missed = self.extract_missed_clipped(aln, clipped_end, locus[1:], reads_fasta=reads_fasta)
                     if missed:
                         qstart, qend, tpos, seq = missed
                         missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
