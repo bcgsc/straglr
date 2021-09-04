@@ -12,7 +12,7 @@ pip install git+https://github.com/bcgsc/straglr.git#egg=straglr
 Straglr depends on [Tandem Repeat Finder(TRF)](https://tandem.bu.edu/trf/trf.html) for identifying TRs and [blastn](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/) for motif matching. (TRF and blastn executables must be in `$PATH`)
 
 ## Input
-Long read alignments sorted by genomic coordindates in BAM format against the reference genome. Suggested aligner: [Minimap2](https://github.com/lh3/minimap2)
+Long read alignments sorted by genomic coordindates in BAM format against the reference genome. Suggested aligner: [Minimap2](https://github.com/lh3/minimap2) **-- Please use the option `-Y` to enable soft-clipping so that read sequences can be assessed directly from the BAM file.** 
 
 ## Usage
 ```
@@ -74,3 +74,10 @@ The first 5 columns can be cut and collapsed (using Unix `uniq`) into essentiall
 * copy_numbers: comma-separated list of copy numbers in support reads separated by semi-colon for each allele
 * sizes: comma-separated list of allele sizes in support reads separated by semi-colon for each allele
 * read_starts: comma-separated list of repeat start coordinates in support reads separated by semi-colon for each allele
+
+## Contact
+[Readman Chiu](mailto:rchiu@bcgsc.ca)
+
+## Citation
+Chiu R, Rajan-Babu IS, Friedman JM, Birol I. Straglr: discovering and genotyping tandem repeat expansions using whole genome long-read sequences. *Genome Biol* 22, 224 (2021). https://doi.org/10.1186/s13059-021-02447-3
+
