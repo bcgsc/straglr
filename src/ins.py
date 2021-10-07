@@ -70,7 +70,6 @@ class INSFinder:
             chroms = self.chroms
 
         regions = self.get_examine_regions(bam, chroms)
-        print('zz {}'.format(len(regions)))
 
         all_ins = []
         if regions:
@@ -87,7 +86,7 @@ class INSFinder:
                 for region in regions:
                     all_ins.extend(self.examine_region(region, bam=bam, reads_fasta=reads_fasta))
 
-        print('gg {}'.format(len(all_ins)))
+        #print('gg {}'.format(len(all_ins)))
         if all_ins:
             ins_cleared = all_ins
             if self.exclude:

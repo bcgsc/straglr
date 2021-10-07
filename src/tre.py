@@ -1058,7 +1058,6 @@ class TREFinder:
 
         if tre_events:
             merged_loci = self.merge_loci(tre_events)
-            print('mm {}'.format(len(merged_loci)))
             self.make_trf_sensitive()
             variants = self.collect_alleles(merged_loci)
 
