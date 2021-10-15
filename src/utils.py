@@ -2,6 +2,7 @@ from pathos.multiprocessing import ProcessingPool as Pool
 import tempfile
 import sys
 import os
+from operator import itemgetter
 
 def split_tasks(args, n):
     k, m = divmod(len(args), n)
@@ -48,3 +49,23 @@ def reverse_complement(seq):
     """Reverse complements sequence string"""
     complement = str.maketrans("agtcAGTC", "tcagTCAG")
     return seq[::-1].translate(complement)
+
+def merge_spans(spans):
+    spans_checked = [span for span in spans if len(span) == 2 and type(span[0]) is int and type(span[1]) is int and span[0]<=span[1]]
+    spans_sorted = sorted(spans_checked, key=itemgetter(0,1))
+    spans_merged = [list(spans_sorted[0])]
+    for i in range(1, len(spans_sorted)):
+        if spans_sorted[i][0] <= spans_merged[-1][1] + 1:
+            if spans_sorted[i][1] > spans_merged[-1][1]:
+                spans_merged[-1][1] = spans_sorted[i][1]
+        else:
+            spans_merged.append(list(spans_sorted[i]))
+
+    return spans_merged
+
+def complement_spans(spans):
+    spans_merged = merge_spans(spans)
+    complement = []
+    for i in range(1, len(spans_merged)):
+        complement.append([spans[i-1][1] + 1, spans[i][0] - 1])
+    return complement
