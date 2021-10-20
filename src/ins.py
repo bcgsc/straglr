@@ -170,9 +170,16 @@ class INSFinder:
             return ins_list
 
         clipped_pairs = defaultdict(dict)
+        read_spans = {}
         for aln in bam.fetch(region[0], int(region[1]), int(region[2])):
             if reads_fasta is None and not aln.query_sequence:
                 continue
+
+            if not aln.query_name in read_spans:
+                read_spans[aln.query_name] = {'starts':defaultdict(int), 'ends':defaultdict(int)}
+            read_spans[aln.query_name]['starts'][aln.reference_start] += 1
+            read_spans[aln.query_name]['ends'][aln.reference_end] += 1
+
             if self.check_split_alignments:
                 clipped_end, partner_start = self.is_split_aln_potential_ins(aln)
                 if clipped_end is not None:
@@ -182,15 +189,21 @@ class INSFinder:
                 ins_list.extend(self.extract_ins(aln, region, reads_fasta=reads_fasta))
 
         if clipped_pairs:
-            ins_list.extend(self.extract_ins_from_clipped(clipped_pairs, bam, reads_fasta=reads_fasta))
+            ins_list.extend(self.extract_ins_from_clipped(clipped_pairs, bam, read_spans, reads_fasta=reads_fasta))
 
         return ins_list
 
-    def extract_ins_from_clipped(self, clipped_pairs, bam, reads_fasta=None):
+    def extract_ins_from_clipped(self, clipped_pairs, bam, read_spans, reads_fasta=None):
         ins_from_clipped = []
         for read in clipped_pairs.keys():
             if 'start' in clipped_pairs[read] and 'end' in clipped_pairs[read]:
                 aln1, aln2 = clipped_pairs[read]['end'][0], clipped_pairs[read]['start'][0]
+
+                if aln2.reference_end <= aln1.reference_end or aln1.reference_start >= aln2.reference_start:
+                    continue
+                if read_spans[read]['starts'][aln1.reference_start] > 1 or read_spans[read]['ends'][aln2.reference_end] > 1:
+                    continue
+
                 if not reads_fasta:
                     ins_seq = aln1.query_sequence[aln1.query_alignment_end:aln2.query_alignment_start]
                 else:
