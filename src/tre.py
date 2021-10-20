@@ -4,12 +4,11 @@ import sys
 import subprocess
 import os
 import re
-from intspan import intspan
 from .variant import Variant, Allele
 from collections import defaultdict, Counter
 from operator import itemgetter, attrgetter
 import itertools
-from .utils import split_tasks, parallel_process, combine_batch_results, create_tmp_file, reverse_complement
+from .utils import split_tasks, parallel_process, combine_batch_results, create_tmp_file, reverse_complement, merge_spans, complement_spans
 from .ins import INSFinder, INS
 import math
 import random
@@ -227,11 +226,9 @@ class TREFinder:
         if not coords:
             return []
 
-        merged = intspan.from_ranges(coords)
-        gaps = merged.complement()
-
-        merged_list = merged.ranges()
-        gap_list = gaps.ranges()
+        merged_list = merge_spans(coords)
+        gap_list = complement_spans(merged_list)
+ 
         gaps_filled = []
         for i in range(len(merged_list)-1):
             if gap_list[i]:
@@ -239,7 +236,7 @@ class TREFinder:
                 if gap_size <= max_sep:
                     gaps_filled.append(gap_list[i])
 
-        return intspan.from_ranges(merged_list + gaps_filled).ranges()
+        return merge_spans(merged_list + gaps_filled)
 
     def analyze_trf_per_seq(self, result, ins_len, gstart, gend, same_pats, target_flank, full_cov=0.8, mid_pt_buf=200):
         pattern_matched = None
@@ -447,7 +444,7 @@ class TREFinder:
         results = self.parse_trf(output)
         return results
 
-    def find_similar_long_patterns_gt(self, results, patterns, min_len=20):
+    def find_similar_long_patterns_gt(self, results, patterns, min_len=15):
         same_pats = {}
         queries = defaultdict(set)
         targets = defaultdict(set)
