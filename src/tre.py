@@ -558,8 +558,7 @@ class TREFinder:
 
         return matches
 
-    def extract_alleles_trf(self, trf_input, repeat_seqs, flank, clipped, bam, strands, patterns, min_span=0.6, too_close_to_read_end=200):
-        # min_span used to be 0.8
+    def extract_alleles_trf(self, trf_input, repeat_seqs, flank, clipped, bam, strands, patterns, too_close_to_read_end=200):
         results = self.perform_trf(trf_input)
         same_pats = self.find_similar_long_patterns_gt(results, patterns)
 
@@ -603,8 +602,7 @@ class TREFinder:
                     #covered = True
                     check_seq_len = abs(len(repeat_seqs[seq]) - 2 * flank)
                     span = float(combined_coords[0][1] - combined_coords[0][0] + 1)
-                    if check_seq_len < 50:
-                        min_span = 0.2
+                    min_span = 0.2 if check_seq_len < 50 else 0.6
                     #covered = (span / check_seq_len) >= min_span
 
                     if check_seq_len == 0 or (span / check_seq_len) < min_span:
