@@ -7,3 +7,12 @@ v1.1.0
 
 v1.1.1
 - bugfix in `tre.py`
+
+v1.2.0
+- bugfix: forgot to pass `reads_fasta` to `extract_missed_clipped()`
+- bugfix: `min_support` checking should use "greater than or equal to"
+- removed dependency on `intspan`
+- reduced `min_len` from 20 to 15 for comparing motifs using `blastn`
+- bugfix: keep track of genomic coordinates of all alignments to detect reads that truly span long reference repeats
+- assigned `min_span` explicitly in conditional instead of relying on initialized value - `min_span` does not change in some cases when runing genome scan for some unknown reason
+- added `check_same_pats()` in `is_same_repeat()` to check if one motif is subsequence of another in `blastn` matches
