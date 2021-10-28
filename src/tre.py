@@ -148,7 +148,7 @@ class TREFinder:
             eid, ins_len, gstart, gend = seq_id.rsplit('.', 3)
 
             if 't' in results[seq_id]:
-                pat, pgstart, pgend = self.analyze_trf_per_seq(results[seq_id], int(ins_len), int(gstart), int(gend), same_pats, target_flank, full_cov=full_cov)
+                pat, pgstart, pgend = self.analyze_trf_per_seq(results[seq_id], int(ins_len), int(gstart), int(gend), same_pats, target_flank, full_cov=full_cov, seq_id=seq_id)
                 if pat is not None:
                     expansions[eid] = pat, pgstart, pgend
 
@@ -183,6 +183,21 @@ class TREFinder:
         return same_pats
 
     def is_same_repeat(self, reps, same_pats=None, min_fraction=0.5):
+        def check_same_pats(rep1, rep2):
+            if rep1 in same_pats:
+                if rep2 in same_pats[rep1]:
+                    return True
+
+                for rep in same_pats[rep1]:
+                    if rep2 in rep:
+                        if float(rep.count(rep2) * len(rep2)) / len(rep) >= min_fraction:
+                            return True
+                    elif rep in rep2:
+                        if float(rep2.count(rep) * len(rep)) / len(rep2) >= min_fraction:
+                            return True
+
+            return False
+
         if len(reps[0]) <= len(reps[1]):
             rep1, rep2 = reps[0], reps[1]
         else:
@@ -202,20 +217,17 @@ class TREFinder:
                     return True
 
         if same_pats:
-            if reps[0] in same_pats and reps[1] in same_pats[reps[0]]:
-                return True
-
-            if reps[1] in same_pats and reps[0] in same_pats[reps[1]]:
+            if check_same_pats(reps[0], reps[1]) or check_same_pats(reps[1], reps[0]):
                 return True
 
             for i in range(0, len(reps[0]), 5):
                 pat = reps[0][i:] + reps[0][:i]
-                if pat in same_pats and reps[1] in same_pats[pat]:
+                if check_same_pats(pat, reps[1]) or check_same_pats(reps[1], pat):
                     return True
 
             for i in range(0, len(reps[1]), 5):
                 pat = reps[1][i:] + reps[1][:i]
-                if pat in same_pats and reps[0] in same_pats[pat]:
+                if check_same_pats(pat, reps[0]) or check_same_pats(reps[0], pat):
                     return True
 
         return False
@@ -238,7 +250,7 @@ class TREFinder:
 
         return merge_spans(merged_list + gaps_filled)
 
-    def analyze_trf_per_seq(self, result, ins_len, gstart, gend, same_pats, target_flank, full_cov=0.8, mid_pt_buf=200):
+    def analyze_trf_per_seq(self, result, ins_len, gstart, gend, same_pats, target_flank, full_cov=0.8, mid_pt_buf=200, seq_id=None):
         pattern_matched = None
         pgstart, pgend = None, None
 
