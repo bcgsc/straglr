@@ -22,7 +22,6 @@ setup(
     install_requires = [
         'pysam>=0.14.0',
         'pybedtools>=0.7.9',
-        'intspan>=1.5.8',
         'numpy>=1.14.2',
         'pathos>=0.2.3',
         'scikit-learn>=0.19.0',
