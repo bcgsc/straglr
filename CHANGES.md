@@ -17,3 +17,4 @@ v1.2.0
 - assigned `min_span` explicitly in conditional instead of relying on initialized value - `min_span` does not change in some cases when runing genome scan for some unknown reason
 - added `check_same_pats()` in `is_same_repeat()` to check if one motif is subsequence of another in `blastn` matches
 - test data added
+- output BED file by default in addition to TSV (user provide output prefix instead of name). BED output simplied without details such as read names. 
