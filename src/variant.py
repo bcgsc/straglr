@@ -21,6 +21,8 @@ class Variant:
                    'genotype',
                    ]
 
+    bed_headers = ['chrom', 'start', 'end', 'repeat_unit']
+
     @classmethod
     def set_genotype_config(cls, method=None, min_reads=None, max_num_clusters=3, eps=None):
         genotype_config = {'method': 'gmm',
@@ -72,15 +74,24 @@ class Variant:
             if not assigned:
                 allele.append('-')
 
-    @classmethod 
-    def summarize_genotype(cls, variant):
+    @classmethod
+    def get_genotype(cls, variant):
         allele_counts = Counter([allele[-1] for allele in variant[3]])
-        out = []
+        gt = []
         for allele in sorted([a for a in allele_counts.keys() if type(a) is not str], reverse=True) +\
                              [a for a in allele_counts.keys() if type(a) is str]:
             if allele == '-' and len(allele_counts.keys()) > 1:
                 continue
-            out.append('{}({})'.format(allele, allele_counts[allele]))
+            gt.append((allele, allele_counts[allele]))
+
+        return gt
+
+    @classmethod
+    def summarize_genotype(cls, variant):
+        gt = cls.get_genotype(variant)
+        out = []
+        for allele, support in gt:
+            out.append('{}({})'.format(allele, support))
         variant[6] = ';'.join(out)
 
     @classmethod

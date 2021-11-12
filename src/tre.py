@@ -13,6 +13,7 @@ from .ins import INSFinder, INS
 import math
 import random
 from pybedtools import BedTool
+from datetime import datetime
 
 class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
@@ -1130,8 +1131,10 @@ class TREFinder:
 
         return self.collect_alleles(loci)
     
-    def output(self, variants, out_file):
+    def output_tsv(self, variants, out_file, cmd=None):
         with open(out_file, 'w') as out:
+            if cmd is not None:
+                out.write('#{} {}\n'.format(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), cmd))
             out.write('#{}\n'.format('\t'.join(Variant.tsv_headers + Allele.tsv_headers)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
                 if not variant[5]:
@@ -1141,32 +1144,38 @@ class TREFinder:
                     allele_cols = Allele.to_tsv(allele)
                     out.write('{}\n'.format('\t'.join(variant_cols + allele_cols)))
 
-    def output_summary(self, variants, out_file):
+    def output_bed(self, variants, out_file):
+        headers = Variant.bed_headers
+        for i in range(self.max_num_clusters):
+            for j in ('size', 'copy_number', 'support'):
+                headers.append('allele{}:{}'.format(i+1, j))
+
         with open(out_file, 'w') as out:
-            out.write('#{}\n'.format('\t'.join(Variant.tsv_headers + Allele.summary_headers)))
+            out.write('#{}\n'.format('\t'.join(headers)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
-                if not variant[5]:
-                    continue
-                variant_cols = Variant.to_tsv(variant)
-
-                reads = []
-                cns = []
+                cols = variant[:3] + [variant[4]]
                 sizes = []
-                starts = []
-                alleles = sorted(variant[3], key=itemgetter(3), reverse=True)
-                for allele in sorted(variant[5], reverse=True):
-                    gg = [a for a in alleles if a[7] == allele]
-                    summary = Variant.summarize_alleles([a for a in alleles if a[7] == allele])
-                    reads.append(summary[0])
-                    cns.append(summary[1])
-                    sizes.append(summary[2])
-                    starts.append(summary[3])
+                copy_numbers = []
+                supports = []
 
-                out.write('{}\n'.format('\t'.join(variant_cols + [';'.join(reads),
-                                                                  ';'.join(cns),
-                                                                  ';'.join(sizes),
-                                                                  ';'.join(starts)]
-                                                                  )))
+                gt = Variant.get_genotype(variant)
+                for allele, support in gt:
+                    supports.append(support)
+                    if self.genotype_in_size:
+                        sizes.append(allele)
+                        copy_numbers.append(round(allele / len(variant[4]) , 1))
+                    else:
+                        copy_numbers.append(allele)
+                        sizes.append(allele * len(variant[4]))
+
+                for size, copy_number, support in zip(sizes, copy_numbers, supports):
+                    cols.extend([size, copy_number, support])
+
+                if len(gt) < self.max_num_clusters:
+                    for i in range(self.max_num_clusters - len(gt)):
+                        cols.extend(['-'] * 3)
+
+                out.write('{}\n'.format('\t'.join(map(str, cols))))
 
     def cleanup(self):
         if self.tmp_files:
