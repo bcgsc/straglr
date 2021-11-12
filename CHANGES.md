@@ -19,4 +19,4 @@ v1.2.0
 - test data added
 - output BED file by default in addition to TSV (user provide output prefix instead of name). BED output simplied without details such as read names.
 - added `--regions` to specify (in BED format) specific regions for scanning
-- added `--min_cluster_size` (default=2) to separate from `--min_support` so that alleles with fewer (than `min_support`) read support can be segregated 
+- added `--min_cluster_size` (default=2) to separate from `--min_support` so that alleles with fewer read support can be segregated 
