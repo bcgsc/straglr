@@ -62,14 +62,17 @@ class INSFinder:
 
         self.max_cov = max_cov
 
-    def find_ins(self):
+    def find_ins(self, regions_bed_file=None):
         bam = pysam.Samfile(self.bam, 'rb')
 
-        chroms = [chrom for chrom in bam.references if not '_' in chrom and not 'M' in chrom]
-        if self.chroms:
-            chroms = self.chroms
+        if regions_bed_file is None:
+            chroms = [chrom for chrom in bam.references if not '_' in chrom and not 'M' in chrom]
+            if self.chroms:
+                chroms = self.chroms
 
-        regions = self.get_examine_regions(bam, chroms)
+            regions = self.get_examine_regions(bam, chroms)
+        else:
+            regions = self.get_examine_regions(None, None, regions_bed_file=regions_bed_file)
 
         all_ins = []
         if regions:
@@ -417,9 +420,6 @@ class INSFinder:
         ins_kept = [ins for ins in ins_list if INS.eid(ins) not in eids_removed]
         
         return ins_kept
-        #eids_merged = self.merge(ins_kept)
-
-        #return [ins for ins in ins_list if INS.eid(ins) in eids_merged]
 
     def split_region(self, region, max_size):
         subregions = []
@@ -431,28 +431,35 @@ class INSFinder:
         subregions.append([region[0], start, end])
         return subregions
 
-    def get_examine_regions(self, bam, chroms, chuck_size=1000000):
-        chrom_lens = dict((bam.references[i], bam.lengths[i]) for i in range(len(bam.references)))
+    def get_examine_regions(self, bam, chroms, chunk_size=1000000, regions_bed_file=None):
         regions = []
-        if self.exclude:
-            chrom_spans = ''
-            for chrom in sorted(chroms):
-                chrom_spans += '{}\n'.format('\t'.join(map(str, [chrom, 0, chrom_lens[chrom]])))
-            chrom_bed_file = create_tmp_file(chrom_spans)
-
-            chrom_bed = BedTool(chrom_bed_file)
-            exclude_bed = BedTool(self.exclude)
-            regions_kept = map(tuple, chrom_bed.subtract(exclude_bed))
-
-            for region in regions_kept:
-                regions.extend(self.split_region(region, chuck_size))
+        if regions_bed_file:
+            regions_bed = BedTool(regions_bed_file)
+            for region in regions_bed.window_maker(regions_bed, w=chunk_size, s=chunk_size+1):
+                regions.append((region[0], int(region[1]), int(region[2])))
 
         else:
-            size = 1000000
-            for chrom in chroms:
-                i = 0
-                while i < chrom_lens[chrom]:
-                    regions.append((chrom, i, min(i + size, chrom_lens[chrom])))
-                    i += size + 1
+            chrom_lens = dict((bam.references[i], bam.lengths[i]) for i in range(len(bam.references)))
+
+            if self.exclude:
+                chrom_spans = ''
+                for chrom in sorted(chroms):
+                    chrom_spans += '{}\n'.format('\t'.join(map(str, [chrom, 0, chrom_lens[chrom]])))
+                chrom_bed_file = create_tmp_file(chrom_spans)
+
+                chrom_bed = BedTool(chrom_bed_file)
+                exclude_bed = BedTool(self.exclude)
+                regions_kept = map(tuple, chrom_bed.subtract(exclude_bed))
+
+                for region in regions_kept:
+                    regions.extend(self.split_region(region, chunk_size))
+
+            else:
+                size = 1000000
+                for chrom in chroms:
+                    i = 0
+                    while i < chrom_lens[chrom]:
+                        regions.append((chrom, i, min(i + size, chrom_lens[chrom])))
+                        i += size + 1
  
         return regions

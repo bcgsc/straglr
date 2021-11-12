@@ -60,7 +60,7 @@ def main():
                                max_cov=args.max_cov,
                                )
         # find ins
-        ins = ins_finder.find_ins()
+        ins = ins_finder.find_ins(regions_bed_file=args.regions)
 
         # find ins that are str
         if ins:
