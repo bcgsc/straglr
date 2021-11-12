@@ -41,6 +41,7 @@ def main():
                            max_str_len=args.max_str_len,
                            min_str_len=args.min_str_len,
                            min_support=args.min_support,
+                           min_cluster_size=args.min_cluster_size,
                            clustering=args.clustering,
                            genotype_in_size=args.genotype_in_size,
                            eps=args.eps,
