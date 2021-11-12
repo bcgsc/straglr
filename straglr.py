@@ -13,7 +13,7 @@ def parse_args():
     parser.add_argument("--reads_fasta", type=str, help="read indexed fasta file")
     parser.add_argument("--min_ins_size", type=int, default=300, help="minimum insertion size. Default:300")
     parser.add_argument("--exclude", type=str, help="bed file to exclude regions")
-    parser.add_argument("--regions", type=str, help="bed file of specific regions")
+    parser.add_argument("--regions", type=str, help="bed file for scanning only specific regions")
     parser.add_argument("--nprocs", type=int, help="number of processes", default=1)
     parser.add_argument("--chroms", type=str, nargs="+", help="chromosomes")
     parser.add_argument("--loci", type=str, help="bed file of loci for genotyping")
