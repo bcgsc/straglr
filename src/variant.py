@@ -25,27 +25,13 @@ class Variant:
 
     @classmethod
     def set_genotype_config(cls, method=None, min_reads=None, max_num_clusters=3, eps=None):
-        genotype_config = {'method': 'gmm',
-                           'min_reads': 4,
-                           'max_num_clusters': max_num_clusters,
-                           'eps': 50}
-
-        # default = 'gmm', alternative: 'dbscan'
-        if method == 'dbscan':
-            genotype_config['method'] = method
+        genotype_config = {'min_reads': 4, 'max_num_clusters': max_num_clusters}
 
         # minimum number of reads per cluster
         if min_reads is not None:
             genotype_config['min_reads'] = min_reads
 
-        # default 50 is used if not specified
-        if eps is not None:
-            genotype_config['eps'] = eps
-
-        cls.clustering = Cluster(genotype_config['method'],
-                                 genotype_config['min_reads'],
-                                 genotype_config['max_num_clusters'],
-                                 genotype_config['eps'])
+        cls.clustering = Cluster(genotype_config['min_reads'], genotype_config['max_num_clusters'])
 
     @classmethod
     def genotype(cls, variant, report_in_size=False):

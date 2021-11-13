@@ -1,44 +1,16 @@
 import numpy as np
 from numpy.random import rand
 from sklearn.mixture import GaussianMixture
-from .DBSCAN_1D import DBSCAN_1D
 from scipy import stats
 
 class Cluster:
-    def __init__(self, method, min_pts, max_num_clusters, eps=50):
-        self.method = method
+    def __init__(self, min_pts, max_num_clusters):
         self.min_pts = min_pts
         self.max_num_clusters = max_num_clusters
-        self.eps = eps
         
     def cluster(self, data):
         try:
-            if self.method == 'gmm':
-                return self.gmm(data)
-
-            elif self.method == 'dbscan':
-                # make duplicates by adding 0.1 (assuming inputs are sizes in integers)
-                seen = {}
-                data_cluster = []
-                for d in data:
-                    if not d in seen.keys():
-                        data_cluster.append(d)
-                        seen[d] = d
-                    else:
-                        seen[d] += 0.1
-                        data_cluster.append(seen[d])
-
-                iqr = stats.iqr(data, rng=(10, 90))
-                eps = min(500, max(20, iqr/4))
-
-                # reverting them back to integers
-                cluster_ints = []
-                for cluster in self.dbscan(data_cluster, eps):
-                    cluster_int = []
-                    for d in cluster:
-                        cluster_int.append(int(d))
-                    cluster_ints.append(cluster_int)
-                return cluster_ints
+            return self.gmm(data)
         except:
             return []
         
@@ -111,11 +83,3 @@ class Cluster:
             new_clusters.append(cc)
 
         return new_clusters
-        
-    def dbscan(self, x, eps=None):
-        if eps is None:
-            eps = self.eps
-        dbscan_1d = DBSCAN_1D(x, eps, 2)
-        
-        return [c for c in dbscan_1d.C if len(c) >= self.min_pts]
-        

@@ -19,8 +19,6 @@ def parse_args():
     parser.add_argument("--loci", type=str, help="bed file of loci for genotyping")
     parser.add_argument("--min_support", type=int, help="minimum number of supporting reads for detecting expansion", default=2)
     parser.add_argument("--min_cluster_size", type=int, help="minimum number of supporting reads for allele clustering", default=2)
-    parser.add_argument("--clustering", type=str, help="clustering method. Default:gmm (alternative:dbscan)", default='gmm')
-    parser.add_argument("--eps", type=int, help="epsilon parameter in dbscan clustering. Default:50", default=50)
     parser.add_argument("--genotype_in_size", action="store_true", help="report genotype in size instead of copy numbers")
     parser.add_argument("--max_str_len", type=int, help="maximum STR length. Default:50", default=50)
     parser.add_argument("--min_str_len", type=int, help="minimum STR length. Default:2", default=2)
@@ -42,9 +40,7 @@ def main():
                            min_str_len=args.min_str_len,
                            min_support=args.min_support,
                            min_cluster_size=args.min_cluster_size,
-                           clustering=args.clustering,
                            genotype_in_size=args.genotype_in_size,
-                           eps=args.eps,
                            max_num_clusters=args.max_num_clusters,
                            remove_tmps=not args.debug)
 

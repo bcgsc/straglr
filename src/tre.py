@@ -18,8 +18,8 @@ from datetime import datetime
 class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
-                 clustering='gmm', max_num_clusters=3, min_cluster_size=2,
-                 genotype_in_size=False, eps=None, remove_tmps=False):
+                 max_num_clusters=3, min_cluster_size=2,
+                 genotype_in_size=False, remove_tmps=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
         trf_path = spawn.find_executable("trf")
@@ -50,14 +50,13 @@ class TREFinder:
         self.tmp_files = set()
 
         # Cluster object for genotyping
-        self.clustering = clustering
         self.max_num_clusters = max_num_clusters
 
         # report genotype in size instead of copy numbers (default)
         self.genotype_in_size = genotype_in_size
 
         # epsilon(distance between points) parameter for dbscan clustering
-        self.eps = eps
+        #self.eps = eps
 
         # True when running in genotyping mode - strictly genotyping within given coordinates
         self.strict = False
@@ -1013,10 +1012,7 @@ class TREFinder:
                                                        patterns))
 
         # set genotyping configuration (class variable)
-        Variant.set_genotype_config(method=self.clustering,
-                                    min_reads=self.min_cluster_size,
-                                    max_num_clusters=self.max_num_clusters,
-                                    eps=self.eps)
+        Variant.set_genotype_config(min_reads=self.min_cluster_size, max_num_clusters=self.max_num_clusters)
 
         for variant in variants:
             # genotype
