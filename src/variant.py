@@ -113,10 +113,7 @@ class Variant:
             max_allele_size = sorted(variant[5])[-1]
 
             alleles = [a for a in variant[3] if a[7] == max_allele_size and a[4] - ref_size >= min_expansion]
-            #sizes = [a[4] for a in variant[3] if a[7] == max_allele_size]
-            #print('cc', variant, min_reads, len(variant[3]), len(alleles), len(alleles)>min_reads, np.median(sizes), np.median(sizes) - ref_size >min_expansion)
             return len(alleles) >= min_reads
-            #return max_allele_size - ref_size >= min_expansion
         else:
             return False
 

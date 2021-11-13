@@ -26,7 +26,6 @@ class TREFinder:
         if not trf_path:
             sys.exit('ABORT: {}'.format("can't find trf in PATH"))
             
-        #self.trf_args = '2 5 5 80 10 50 500 -d -h'
         self.trf_args = '2 5 5 80 10 10 500 -d -h'
         self.flank_len = 2000
 
@@ -329,7 +328,6 @@ class TREFinder:
         return pattern_matched, pgstart, pgend
 
     def annotate(self, ins_list, expansions):
-        #ins_dict = dict((ins.eid, ins) for ins in ins_list)
         ins_dict = dict((INS.eid(ins), ins) for ins in ins_list)
         for eid in expansions.keys():
             if eid in ins_dict:
@@ -410,10 +408,6 @@ class TREFinder:
             aln_tuple = self.extract_aln_tuple(aln, target_end, 'right', max_extend=max_extend)
             if aln_tuple:
                 qend, tend = aln_tuple
-
-        #if aln.cigartuples[0][0] == 5:
-            #qstart += aln.cigartuples[0][1]
-            #qend += aln.cigartuples[0][1]
 
         if qstart is not None and qend is not None:
             if aln.cigartuples[0][0] == 5:
@@ -604,7 +598,6 @@ class TREFinder:
                             continue
 
             if results_matched:
-                #seq_len = int(cols[-1])
                 seq_len = int(cols[-3])
                 bounds = (flank, seq_len - flank)
                 combined_coords = self.combine_trf_coords([(r[0], r[1]) for r in results_matched], bounds)
@@ -614,23 +607,13 @@ class TREFinder:
                     combined_coords.sort(key=lambda c:c[1]-c[0], reverse=True)
 
                 if combined_coords:
-                    #covered = True
                     check_seq_len = abs(len(repeat_seqs[seq]) - 2 * flank)
                     span = float(combined_coords[0][1] - combined_coords[0][0] + 1)
                     min_span = 0.2 if check_seq_len < 50 else 0.6
-                    #covered = (span / check_seq_len) >= min_span
 
                     if check_seq_len == 0 or (span / check_seq_len) < min_span:
                         continue
-                    #if abs(len(repeat_seqs[seq]) - 2 * flank) > 0 and span >= 100:
-                        #covered = (span / abs(len(repeat_seqs[seq]) - 2 * flank)) >= min_span
-                    #if not covered:
-                        #continue
 
-                #if combined_coords and\
-                   #(abs(len(repeat_seqs[seq]) - 2 * flank) > 0 and\
-                    #(combined_coords[0][1] - combined_coords[0][0] + 1) >= 100 and\
-                    #float(combined_coords[0][1] - combined_coords[0][0] + 1) / abs(len(repeat_seqs[seq]) - 2 * flank) > min_span):
                     coords = combined_coords[0]
                     repeat_seq = repeat_seqs[seq][coords[0]-1:coords[-1]]
                     size = coords[-1] - coords[0] + 1
@@ -752,7 +735,6 @@ class TREFinder:
             clipped_size = aln.cigartuples[-1][1]
 
         if clipped_size is not None:
-        #if clipped_size is not None and clipped_size / aln.infer_read_length() > min_proportion:
             if clipped_end == 'start':
                 qstart, qend = 0, aln.query_alignment_start + self.trf_flank_size
                 tpos = aln.reference_start
@@ -974,7 +956,6 @@ class TREFinder:
                     if missed:
                         qstart, qend, tpos, seq = missed
                         missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
-                    #alns.remove(aln)
         
             if missed_clipped:
                 rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)

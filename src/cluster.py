@@ -28,20 +28,6 @@ class Cluster:
                         seen[d] += 0.1
                         data_cluster.append(seen[d])
 
-                # set eps
-                #percent1 = float(self.min_pts) * 100 / len(data)
-                #percent2 = 100.0 - percent1
-                #iqr = stats.iqr(data, rng=(percent1, percent2))
-                ##iqr = stats.iqr(data, rng=(10,90))
-                #if iqr < 100:
-                    #eps = 20
-                #elif iqr < 200:
-                    #eps = 50
-                #else:
-                    #eps = 100
-                #eps = max(20, stats.iqr(data)/4)
-                #eps = 100
-
                 iqr = stats.iqr(data, rng=(10, 90))
                 eps = min(500, max(20, iqr/4))
 
@@ -53,15 +39,11 @@ class Cluster:
                         cluster_int.append(int(d))
                     cluster_ints.append(cluster_int)
                 return cluster_ints
-                #return self.dbscan(data)
-                #dbscan = DBSCAN_1D(data, self.eps, self.min_pts)
-                #return dbscan.C
         except:
             return []
         
     def gmm(self, x):
         X = np.array([[i] for i in x])
-        #N = np.arange(1, 4)
         N = np.arange(1, self.max_num_clusters + 1)
         models = [None for i in range(len(N))]
         AICs = []
@@ -103,10 +85,8 @@ class Cluster:
             s = np.std(clusters[i])
             bounds[i] = m - 2*s, m + 2*s
             means[i] = m
-            #print('nn', i, clusters[i], m, s, bounds[i])
         for i in range(len(clusters)-1):
             j=i+1
-            #print('oo', i, j,  bounds[i], bounds[j], clusters[i], clusters[j], bounds[i][1] > bounds[j][0])
 
         i = 0
         merged = []
@@ -116,7 +96,6 @@ class Cluster:
             while j < len(clusters):
                 i = j
                 if means[j] - means[merged[-1][-1]] < max(threshold, rel_threshold * min(means[j], means[merged[-1][-1]])):
-                #if means[j] - means[merged[-1][-1]] < threshold:
                     merged[-1].append(j)
                     j += 1
                 else:

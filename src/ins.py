@@ -89,7 +89,6 @@ class INSFinder:
                 for region in regions:
                     all_ins.extend(self.examine_region(region, bam=bam, reads_fasta=reads_fasta))
 
-        #print('gg {}'.format(len(all_ins)))
         if all_ins:
             ins_cleared = all_ins
             if self.exclude:
@@ -169,7 +168,6 @@ class INSFinder:
         ins_list = []
         mean_cov = self.get_coverage(bam, region)
         if mean_cov is None or mean_cov > self.max_cov:
-            #print('skipping region {}:{}-{} because of dubious coverage {}'.format(region[0], region[1], region[2], mean_cov))
             return ins_list
 
         clipped_pairs = defaultdict(dict)
@@ -223,8 +221,6 @@ class INSFinder:
                     if aln1 != aln2:
                         mid = int((aln1.reference_end + aln2.reference_start) / 2)
                         ins_from_clipped.append([aln1.reference_name,
-                                                 #aln1.reference_end,
-                                                 #aln1.reference_end + 1,
                                                  mid,
                                                  mid + 1,
                                                  aln1.query_name,
@@ -410,7 +406,6 @@ class INSFinder:
             ins_bed += '{}\n'.format(INS.to_bed(ins))
 
         ins_bed_file = create_tmp_file(ins_bed)
-        print('kkk {}'.format(ins_bed_file))
 
         ins_all = BedTool(ins_bed_file)
         exclusions = BedTool(self.exclude)
@@ -455,11 +450,10 @@ class INSFinder:
                     regions.extend(self.split_region(region, chunk_size))
 
             else:
-                size = 1000000
                 for chrom in chroms:
                     i = 0
                     while i < chrom_lens[chrom]:
-                        regions.append((chrom, i, min(i + size, chrom_lens[chrom])))
-                        i += size + 1
+                        regions.append((chrom, i, min(i + chunk_size, chrom_lens[chrom])))
+                        i += chunk_size + 1
  
         return regions
