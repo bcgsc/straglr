@@ -42,7 +42,7 @@ def main():
                            min_cluster_size=args.min_cluster_size,
                            genotype_in_size=args.genotype_in_size,
                            max_num_clusters=args.max_num_clusters,
-                           remove_tmps=not args.debug)
+                           debug=args.debug)
 
     variants = []
     if not args.loci:
@@ -55,6 +55,7 @@ def main():
                                nprocs=args.nprocs,
                                min_support=args.min_support,
                                max_cov=args.max_cov,
+                               debug=args.debug,
                                )
         # find ins
         ins = ins_finder.find_ins(regions_bed_file=args.regions)

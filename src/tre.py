@@ -19,7 +19,7 @@ class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
                  max_num_clusters=3, min_cluster_size=2,
-                 genotype_in_size=False, remove_tmps=False):
+                 genotype_in_size=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
         trf_path = spawn.find_executable("trf")
@@ -55,13 +55,11 @@ class TREFinder:
         # report genotype in size instead of copy numbers (default)
         self.genotype_in_size = genotype_in_size
 
-        # epsilon(distance between points) parameter for dbscan clustering
-        #self.eps = eps
-
         # True when running in genotyping mode - strictly genotyping within given coordinates
         self.strict = False
 
-        self.remove_tmps = remove_tmps
+        self.debug = debug
+        self.remove_tmps = True if not self.debug else False
 
     def construct_trf_output(self, input_fasta):
         m = re.search('(\d[\d\s]*\d)', self.trf_args)
@@ -446,7 +444,8 @@ class TREFinder:
 
     def perform_trf(self, seqs):
         trf_fasta = create_tmp_file(seqs)
-        print('trf input {}'.format(trf_fasta))
+        if self.debug:
+            print('trf input {}'.format(trf_fasta))
         self.tmp_files.add(trf_fasta)
         output = self.run_trf(trf_fasta)
         results = self.parse_trf(output)
@@ -576,7 +575,8 @@ class TREFinder:
         for seq in results.keys():
             cols = seq.split(':')
             if len(cols) < 7:
-                print('problematic seq id: {}'.format(seq))
+                if self.debug:
+                    print('problematic seq id: {}'.format(seq))
                 continue
             locus = tuple(cols[:3])
 
@@ -669,7 +669,8 @@ class TREFinder:
             if not header in repeat_seqs.keys():
                 continue
             if not read in read_seqs:
-                print('cannot get sequence:{}'.format(read))
+                if self.debug:
+                    print('cannot get sequence:{}'.format(read))
                 continue
             repeat_seq = repeat_seqs[header][flank:-1*flank]
             repeat = patterns[header]
@@ -680,7 +681,7 @@ class TREFinder:
                 read_seq = read_seqs[read]
                 rpos = read_seq.find(matched_seq)
                 size = len(matched_seq)
-                print('ff {} {} {} {}'.format(read, locus, size, rpos))
+                #print('ff {} {} {} {}'.format(read, locus, size, rpos))
 
                 if not read in alleles[locus]:
                     alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]))
@@ -918,7 +919,8 @@ class TREFinder:
                             alns.remove(aln2)
 
                             if not seq:
-                                print('problem getting seq2 {} {}'.format(aln.query_name, locus))
+                                if self.debug:
+                                    print('problem getting seq2 {} {}'.format(aln.query_name, locus))
                                 continue
                         else:
                             if aln1.query_alignment_length > aln2.query_alignment_length:
@@ -977,7 +979,8 @@ class TREFinder:
                    aln.reference_end >= locus[2] + single_neighbour_size:
                     seq, tstart, tend, qstart = self.extract_subseq(aln, locus[1] - self.trf_flank_size, locus[2] + self.trf_flank_size, reads_fasta=reads_fasta)
                     if seq is None:
-                        print('problem getting seq1 {} {} {} {} {}'.format(aln.query_name, locus, tstart, tend, qstart))
+                        if self.debug:
+                            print('problem getting seq1 {} {} {} {} {}'.format(aln.query_name, locus, tstart, tend, qstart))
                         continue
                     # leave patterns out, some too long for trf header
                     header, fa_entry = self.create_trf_fasta(locus[:3], aln.query_name, tstart, tend, qstart, seq, aln.infer_read_length())
@@ -1026,7 +1029,7 @@ class TREFinder:
 
     def examine_ins(self, ins_list, min_expansion=0):
         if self.nprocs > 1:
-            print('gg {}'.format(len(ins_list)))
+            #print('gg {}'.format(len(ins_list)))
             random.shuffle(ins_list)
             batches = list(split_tasks(ins_list, self.nprocs))
             if not batches:

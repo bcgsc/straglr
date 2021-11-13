@@ -39,7 +39,7 @@ class INS:
         return '\t'.join(map(str, cols))
 
 class INSFinder:
-    def __init__(self, bam, genome_fasta, min_size, w=100, reads_fasta=None, exclude=None, chroms=None, nprocs=None, min_support=None, max_cov=100):
+    def __init__(self, bam, genome_fasta, min_size, w=100, reads_fasta=None, exclude=None, chroms=None, nprocs=None, min_support=None, max_cov=100, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
 
@@ -61,6 +61,8 @@ class INSFinder:
         self.min_support = min_support
 
         self.max_cov = max_cov
+
+        self.debug = debug
 
     def find_ins(self, regions_bed_file=None):
         bam = pysam.Samfile(self.bam, 'rb')
@@ -387,11 +389,13 @@ class INSFinder:
 
     def merge(self, ins_list, d=50):
         ins_bed_file = self.create_tmp_bed(ins_list)
-        print('ins all {}'.format(ins_bed_file))
+        if self.debug:
+            print('ins all {}'.format(ins_bed_file))
 
         ins_all = BedTool(ins_bed_file)
         ins_merged = ins_all.sort().merge(d=d, c='4,5', o='distinct,count_distinct')
-        ins_merged.saveas('ins_merged.bed')
+        if self.debug:
+            ins_merged.saveas('ins_merged.bed')
 
         eids_merged = set()
         for c in ins_merged:
