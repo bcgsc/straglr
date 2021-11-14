@@ -62,13 +62,13 @@ Highly repetitive genomic regions may be problematic for aligners and give rise 
 	grep -v '^#' simple_repeats.downloaded.tsv | awk -vOFS='\t' 'length($17)>1 {print $2,$3,$4,$17}' > simple_repeats.bed
 	```
 3. Split whole-genome `bed` file into batches with smaller numbers of loci (e.g. 10,000), e.g.:
-```
-split -l 10000 -d -a 4 --additional-suffix=.bed simple_repeats.bed batch
-```
+	```
+	split -l 10000 -d -a 4 --additional-suffix=.bed simple_repeats.bed batch
+	```
 4. Run Straglr on Minimap2 alignments for each batch of TR loci in parallel on, for example, computing cluster, e.g.:
-```
-straglr.py sample.mm2.bam hg38.fa batch0001 --genotype_in_size --min_support 2 --loci batch0001.bed --max_str_len 100 --max_num_clusters 2 --nprocs 32
-```
+	```
+	straglr.py sample.mm2.bam hg38.fa batch0001 --genotype_in_size --min_support 2 --loci batch0001.bed --max_str_len 100 --max_num_clusters 2 --nprocs 32
+	```
 
 ## Output
 1. \<output_prefix>.tsv - detailed output one support read per line 
