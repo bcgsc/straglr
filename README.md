@@ -58,9 +58,9 @@ Highly repetitive genomic regions may be problematic for aligners and give rise 
 #### Example application: genome-wide genotyping
 1. Download UCSC Simple Repeats track in output format `all fields from selected table` using the online `Table Browser` tool
 2. Convert downloaded table into bed format, skipping all homopolymers, with last field specifying motif sequence, e.g.:
-```
-grep -v '^#' simple_repeats.downloaded.tsv | awk -vOFS='\t' 'length($17)>1 {print $2,$3,$4,$17}' > simple_repeats.bed
-```
+	```
+	grep -v '^#' simple_repeats.downloaded.tsv | awk -vOFS='\t' 'length($17)>1 {print $2,$3,$4,$17}' > simple_repeats.bed
+	```
 3. Split whole-genome `bed` file into batches with smaller numbers of loci (e.g. 10,000), e.g.:
 ```
 split -l 10000 -d -a 4 --additional-suffix=.bed simple_repeats.bed batch
