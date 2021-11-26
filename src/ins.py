@@ -235,10 +235,10 @@ class INSFinder:
         return ins_from_clipped
 
     @classmethod
-    def is_split_aln_potential_ins(cls, aln, closeness_to_end=200, min_split_size=500, check_end=None):
+    def is_split_aln_potential_ins(cls, aln, closeness_to_end=200, min_split_size=500, check_end=None, use_sa=True):
         clipped_end = None
         partner_start = None
-        if aln.has_tag('SA'):
+        if use_sa and aln.has_tag('SA'):
             clipped_end, partner_start = cls.is_split_aln_potential_ins_with_SA(aln,
                                                                                 closeness_to_end=closeness_to_end,
                                                                                 min_split_size=min_split_size,
