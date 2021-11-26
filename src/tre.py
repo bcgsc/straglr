@@ -249,7 +249,7 @@ class TREFinder:
 
         return merge_spans(merged_list + gaps_filled)
 
-    def analyze_trf_per_seq(self, result, ins_len, gstart, gend, same_pats, target_flank, full_cov=0.8, mid_pt_buf=200, seq_id=None):
+    def analyze_trf_per_seq(self, result, ins_len, gstart, gend, same_pats, target_flank, full_cov=0.8, mid_pt_buf=50, seq_id=None):
         pattern_matched = None
         pgstart, pgend = None, None
 
@@ -283,26 +283,28 @@ class TREFinder:
 
                 if i_pat_matches['t']:
                     dist_from_mid = {}
+                    rep_lens = {}
                     for i in range(len(filtered_results['t'])):
                         result = filtered_results['t'][i]
                         dist_from_mid[i] = min(abs(float(result[0]) - target_flank), abs(float(result[1]) - target_flank))
+                        rep_lens[i] = len(result[-1])
 
-                    dist_from_mid_picked = None
+                    rep_len = None
                     # check for identical repeats first
                     for i in range(len(filtered_results['t'])):
                         r = filtered_results['t'][i]
                         if self.is_same_repeat((i_pat, r[13]), min_fraction=1):
-                            if dist_from_mid_picked is None or dist_from_mid[i] < dist_from_mid_picked:
+                            if rep_len is None or rep_lens[i] > rep_len:
                                pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
-                               dist_from_mid_picked = dist_from_mid[i]
+                               rep_len = rep_lens[i]
             
                     if pgstart is None:
                         for i in range(len(filtered_results['t'])):
                             r = filtered_results['t'][i]
                             if i_pat in r[13] or r[13] in i_pat or self.is_same_repeat((i_pat, r[13]), same_pats):
-                                if dist_from_mid_picked is None or dist_from_mid[i] < dist_from_mid_picked:
+                                if rep_len is None or rep_lens[i] > rep_len:
                                     pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
-                                    dist_from_mid_picked = dist_from_mid[i]
+                                    rep_len = rep_lens[i]
 
                 break
 
@@ -469,7 +471,7 @@ class TREFinder:
 
         for locus in queries.keys():
             if locus in queries and locus in targets:
-                blastn_out = self.align_patterns(queries[locus], targets[locus], locus=locus)
+                blastn_out = self.align_patterns(queries[locus], targets[locus], locus=locus, word_size=4)
                 if blastn_out and os.path.exists(blastn_out):
                     same_pats[locus] = self.parse_pat_blastn(blastn_out)
 
@@ -608,7 +610,7 @@ class TREFinder:
                 if combined_coords:
                     check_seq_len = abs(len(repeat_seqs[seq]) - 2 * flank)
                     span = float(combined_coords[0][1] - combined_coords[0][0] + 1)
-                    min_span = 0.2 if check_seq_len < 50 else 0.6
+                    min_span = 0.2 if check_seq_len < 50 else 0.5
 
                     if check_seq_len == 0 or (span / check_seq_len) < min_span:
                         continue
@@ -842,7 +844,7 @@ class TREFinder:
 
         return rescued
 
-    def get_alleles(self, loci, reads_fasta=None, closeness_to_end=200):
+    def get_alleles(self, loci, reads_fasta=None, closeness_to_end=50):
         bam = pysam.Samfile(self.bam, 'rb')
         if self.reads_fasta:
             reads_fasta = pysam.Fastafile(self.reads_fasta)
@@ -884,8 +886,8 @@ class TREFinder:
                         check_end = 'start'
                     elif end_olap and not start_olap:
                         check_end = 'end'
-                    clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end)
-                    if clipped_end is not None:
+                    clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end, use_sa=False)
+                    if clipped_end is not None and aln.reference_start != partner_start:
                         clipped[aln.query_name][clipped_end] = (aln, partner_start)
 
             # clipped alignment
@@ -962,6 +964,9 @@ class TREFinder:
                 rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
                 for read, clipped_end, qstart, qend, tstart, tend, seq, locus in rescued:
                     aln = clipped[read][list(clipped[read].keys())[0]][0]
+                    # skip split alignment if start or end too close to repeat (with 50bp)
+                    if not(aln.reference_start + closeness_to_end) <= locus[1] and not (aln.reference_end - closeness_to_end >= locus[2]):
+                        continue
                     header, fa_entry = self.create_trf_fasta(locus[:3], read, tstart, tend, qstart, seq, aln.infer_read_length())
                     patterns[header] = locus[-1]
                     repeat_seqs[header] = seq
