@@ -21,3 +21,4 @@ v1.2.0
 - added `--regions` to specify (in BED format) specific regions for scanning
 - added `--min_cluster_size` (default=2) to separate from `--min_support` so that alleles with fewer read support can be segregated
 - remove optional usage of dbscan for clustering
+- improve boundary definition of long(kb range) repeat loci in genome scan
