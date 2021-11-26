@@ -96,10 +96,15 @@ class Variant:
         ref_size = int(variant[2]) - int(variant[1]) + 1
 
         if variant[5]:
-            max_allele_size = sorted(variant[5])[-1]
+            n = 0
+            for allele in sorted(variant[5], reverse=True):
+                reads = [a for a in variant[3] if a[7] == allele and a[4] - ref_size >= min_expansion]
+                n += len(reads)
 
-            alleles = [a for a in variant[3] if a[7] == max_allele_size and a[4] - ref_size >= min_expansion]
-            return len(alleles) >= min_reads
+            if n >= min_reads:
+                return True
+            else:
+                return False
         else:
             return False
 
