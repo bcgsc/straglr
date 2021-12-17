@@ -64,6 +64,8 @@ class INSFinder:
 
         self.debug = debug
 
+        self.tmp_files = set()
+
     def find_ins(self, regions_bed_file=None):
         bam = pysam.Samfile(self.bam, 'rb')
 
@@ -91,6 +93,7 @@ class INSFinder:
                 for region in regions:
                     all_ins.extend(self.examine_region(region, bam=bam, reads_fasta=reads_fasta))
 
+        ins_filtered = []
         if all_ins:
             ins_cleared = all_ins
             if self.exclude:
@@ -100,9 +103,18 @@ class INSFinder:
                 eids_merged = self.merge(ins_cleared)
 
                 if eids_merged:
-                    return [ins for ins in ins_cleared if INS.eid(ins) in eids_merged]
+                    ins_filtered = [ins for ins in ins_cleared if INS.eid(ins) in eids_merged]
 
-        return []
+        if not self.debug:
+            self.cleanup()
+
+        return ins_filtered
+
+    def cleanup(self):
+        if self.tmp_files:
+            for ff in self.tmp_files:
+                if os.path.exists(ff):
+                    os.remove(ff)
 
     def has_secondary_alignment(self, aln):
         try:
@@ -385,6 +397,8 @@ class INSFinder:
             ins_bed += '{}\n'.format(INS.to_bed(ins, include_read=True))
 
         ins_bed_file = create_tmp_file(ins_bed)
+        self.tmp_files.add(ins_bed_file)
+
         return ins_bed_file
 
     def merge(self, ins_list, d=50):
