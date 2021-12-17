@@ -22,3 +22,5 @@ v1.2.0
 - added `--min_cluster_size` (default=2) to separate from `--min_support` so that alleles with fewer read support can be segregated
 - remove optional usage of dbscan for clustering
 - improve boundary definition of long(kb range) repeat loci in genome scan
+- added enforcement in genotyping such that repeat sequences must extend within 200bp of locus boundary - SVA insertions, which have repeat sequence flanked by non-repeat sequences (including poly-A), will not be retained anymore
+- added `--tmpdir` to allow user to specify TEMP location for generating tmp files
