@@ -348,7 +348,9 @@ class TREFinder:
         for tre in tres:
             bed_lines.append('\t'.join(map(str, [tre[0], tre[1], tre[2], tre[8]])))
         bed_file = create_tmp_file('\n'.join(bed_lines))
-        print('tre loci: {}'.format(bed_file))
+        self.tmp_files.add(bed_file)
+        if self.debug:
+            print('tre loci: {}'.format(bed_file))
 
         tres_bed = BedTool(bed_file)
         tres_merged = tres_bed.sort().merge(d=d, c='4', o='distinct')
