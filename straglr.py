@@ -4,6 +4,7 @@ from src.ins import INSFinder
 from src.tre import TREFinder
 from src.version import __version__
 import sys
+import tempfile
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -24,6 +25,7 @@ def parse_args():
     parser.add_argument("--min_str_len", type=int, help="minimum STR length. Default:2", default=2)
     parser.add_argument("--max_num_clusters", type=int, help="maximum number of clusters to try. Default:2", default=2)
     parser.add_argument("--max_cov", type=int, help="maximum allowed coverage for ins inspection. Default:100", default=100)
+    parser.add_argument("--tmpdir", type=str, help="directory to use for generating tmp files instead of system TEMP")
     parser.add_argument("--debug", action='store_true', help="debug mode i.e. keep trf output")
     parser.add_argument("--version", action='version', version=__version__)
     args = parser.parse_args()
@@ -31,6 +33,9 @@ def parse_args():
 
 def main():
     args = parse_args()
+
+    if args.tmpdir:
+        tempfile.tempdir = args.tmpdir
 
     tre_finder = TREFinder(args.bam,
                            args.genome_fasta,
