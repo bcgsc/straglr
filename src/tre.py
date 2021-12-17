@@ -297,6 +297,8 @@ class TREFinder:
                             if rep_len is None or rep_lens[i] > rep_len:
                                pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
                                rep_len = rep_lens[i]
+                               if r[13] != i_pat:
+                                    pattern_matched += ',{}'.format(r[13])
             
                     if pgstart is None:
                         for i in range(len(filtered_results['t'])):
@@ -305,6 +307,8 @@ class TREFinder:
                                 if rep_len is None or rep_lens[i] > rep_len:
                                     pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
                                     rep_len = rep_lens[i]
+                                    if r[13] != i_pat:
+                                        pattern_matched += ',{}'.format(r[13])
 
                 break
 
@@ -567,7 +571,7 @@ class TREFinder:
 
         return matches
 
-    def extract_alleles_trf(self, trf_input, repeat_seqs, flank, clipped, bam, strands, patterns, too_close_to_read_end=200):
+    def extract_alleles_trf(self, trf_input, repeat_seqs, flank, clipped, bam, strands, patterns, too_far_from_read_end=200):
         results = self.perform_trf(trf_input)
         same_pats = self.find_similar_long_patterns_gt(results, patterns)
 
@@ -611,6 +615,11 @@ class TREFinder:
                     check_seq_len = abs(len(repeat_seqs[seq]) - 2 * flank)
                     span = float(combined_coords[0][1] - combined_coords[0][0] + 1)
                     min_span = 0.2 if check_seq_len < 50 else 0.5
+
+                    if combined_coords[0][0] >= (bounds[0] + too_far_from_read_end) or combined_coords[0][1] <= (bounds[1] - too_far_from_read_end):
+                        if self.debug:
+                            print('too_far_from_read_end', locus, read, combined_coords[0][0], combined_coords[0][1], seq_len, too_far_from_read_end)
+                        continue
 
                     if check_seq_len == 0 or (span / check_seq_len) < min_span:
                         continue
@@ -1033,6 +1042,14 @@ class TREFinder:
         return variants
 
     def examine_ins(self, ins_list, min_expansion=0):
+        def filter_tres(ins_list, tre_events):
+            for ins in ins_list:
+                if ins[6] == 'tre':
+                    motifs = [m for m in ins[-1].split(',') if len(m) >= self.min_str_len and len(m) <= self.max_str_len]
+                    if motifs:
+                        ins[-1] = ','.join(set(motifs))
+                        tre_events.append(ins)
+
         if self.nprocs > 1:
             #print('gg {}'.format(len(ins_list)))
             random.shuffle(ins_list)
@@ -1047,9 +1064,8 @@ class TREFinder:
         # label ins
         self.annotate(ins_list, expansions)
 
-        tre_events = [ins for ins in ins_list if ins[6] == 'tre' and\
-                      len(ins[8]) >= self.min_str_len and\
-                      len(ins[8]) <= self.max_str_len]
+        tre_events = []
+        filter_tres(ins_list, tre_events)
 
         if tre_events:
             merged_loci = self.merge_loci(tre_events)
