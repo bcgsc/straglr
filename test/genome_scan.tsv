@@ -1,3 +1,4 @@
+#2021-12-20_12:48:00 /home/rchiu/work/git/straglr/straglr.py /home/rchiu/work/git/straglr/test/test.bam /projects/btl/rchiu/hg38.fa genome_scan
 #chrom	start	end	repeat_unit	genotype	read	copy_number	size	read_start	allele
 chr22	45795354	45795427	ATTCT	386.7(13)	chr22_243851_aligned_1487_F_1_10297_7	393.6	1968	5965	386.7
 chr22	45795354	45795427	ATTCT	386.7(13)	chr22_243228_aligned_3151_F_11_11487_14	391.0	1955	6612	386.7
