@@ -596,18 +596,21 @@ class TREFinder:
             rstart = int(cols[-2])
             read_len = int(cols[-1])
 
+            pat_lens = []
             results_matched = []
             for result in results[seq]:
                 if len(result[13]) >= self.min_str_len and len(result[13]) <= self.max_str_len:
                     for pat in expected_pats:
                         if self.is_same_repeat((result[13], pat), same_pats=same_pats[locus]):
                             results_matched.append(result)
+                            pat_lens.append((pat, len(result[-1])))
                             continue
 
             if results_matched:
                 seq_len = int(cols[-3])
                 bounds = (flank, seq_len - flank)
                 combined_coords = self.combine_trf_coords([(r[0], r[1]) for r in results_matched], bounds)
+                pat_lens_sorted = sorted(pat_lens, key=itemgetter(1), reverse=True)
 
                 # if coordinates can't be merged pick largest span
                 if len(combined_coords) > 1:
@@ -630,9 +633,13 @@ class TREFinder:
                     repeat_seq = repeat_seqs[seq][coords[0]-1:coords[-1]]
                     size = coords[-1] - coords[0] + 1
                     rpos = rstart + coords[0] - 1
-                    pats = set([r[-2] for r in results_matched])
+                    #pats = set([r[-2] for r in results_matched])
                     genome_start = int(gstart) + coords[0]
                     genome_end = int(gend) - (seq_len - coords[-1])
+
+                    # pick pat/motif of longest repeat
+                    longest_pat_len = pat_lens_sorted[0][1]
+                    pats = set([p[0] for p in pat_lens if p[1] == longest_pat_len]) 
 
                     # match given coordinates, but coords have to make sense first
                     if self.strict and genome_start < genome_end and size > 50:
