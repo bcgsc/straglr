@@ -268,7 +268,7 @@ class TREFinder:
 
         for i_result in sorted(filtered_results['i'], key=lambda r: len(r[13])):
             i_pat = i_result[13]
-            if len(i_pat) == 1:
+            if len(i_pat) == 1 or len(set(i_pat)) == 1:
                 continue
             i_pat_matches = {'q': False, 't': False}
             for pt in ('t', 'q'):
@@ -293,7 +293,7 @@ class TREFinder:
                     # check for identical repeats first
                     for i in range(len(filtered_results['t'])):
                         r = filtered_results['t'][i]
-                        if self.is_same_repeat((i_pat, r[13]), min_fraction=1):
+                        if len(set(r[13])) > 1 and self.is_same_repeat((i_pat, r[13]), min_fraction=1):
                             if rep_len is None or rep_lens[i] > rep_len:
                                pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
                                rep_len = rep_lens[i]
@@ -303,6 +303,8 @@ class TREFinder:
                     if pgstart is None:
                         for i in range(len(filtered_results['t'])):
                             r = filtered_results['t'][i]
+                            if len(set(r[13])) == 1:
+                                continue
                             if i_pat in r[13] or r[13] in i_pat or self.is_same_repeat((i_pat, r[13]), same_pats):
                                 if rep_len is None or rep_lens[i] > rep_len:
                                     pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
@@ -599,11 +601,11 @@ class TREFinder:
             pat_lens = []
             results_matched = []
             for result in results[seq]:
-                if len(result[13]) >= self.min_str_len and len(result[13]) <= self.max_str_len:
+                if len(set(result[13])) > 1 and len(result[13]) >= self.min_str_len and len(result[13]) <= self.max_str_len:
                     for pat in expected_pats:
                         if self.is_same_repeat((result[13], pat), same_pats=same_pats[locus]):
                             results_matched.append(result)
-                            pat_lens.append((pat, len(result[-1])))
+                            pat_lens.append((result[13], len(result[-1])))
                             continue
 
             if results_matched:
