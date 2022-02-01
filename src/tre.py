@@ -626,7 +626,6 @@ class TREFinder:
                     if combined_coords[0][0] >= (bounds[0] + too_far_from_read_end) or combined_coords[0][1] <= (bounds[1] - too_far_from_read_end):
                         if self.debug:
                             print('too_far_from_read_end', locus, read, combined_coords[0][0], combined_coords[0][1], seq_len, too_far_from_read_end)
-                        continue
 
                     if check_seq_len == 0 or (span / check_seq_len) < min_span:
                         continue
