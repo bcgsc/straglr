@@ -24,4 +24,4 @@ v1.2.0
 - improve boundary definition of long(kb range) repeat loci in genome scan
 - added enforcement in genotyping such that repeat sequences must extend within 200bp of locus boundary - SVA insertions, which have repeat sequence flanked by non-repeat sequences (including poly-A), will not be retained anymore
 - added `--tmpdir` to allow user to specify TEMP location for generating tmp files
-- allowed `min_cluster_size` to be bigger than `min_suport` for genotyping mode only
+- allowed `--min_cluster_size` to be bigger than `--min_suport` for genotyping mode only
