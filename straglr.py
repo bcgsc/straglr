@@ -37,6 +37,8 @@ def main():
     if args.tmpdir:
         tempfile.tempdir = args.tmpdir
 
+    min_cluster_size = args.min_cluster_size if args.min_cluster_size < args.min_support else args.min_support
+
     tre_finder = TREFinder(args.bam,
                            args.genome_fasta,
                            nprocs=args.nprocs,
@@ -44,7 +46,7 @@ def main():
                            max_str_len=args.max_str_len,
                            min_str_len=args.min_str_len,
                            min_support=args.min_support,
-                           min_cluster_size=args.min_cluster_size,
+                           min_cluster_size=min_cluster_size,
                            genotype_in_size=args.genotype_in_size,
                            max_num_clusters=args.max_num_clusters,
                            debug=args.debug)
@@ -70,6 +72,7 @@ def main():
             variants = tre_finder.examine_ins(ins, min_expansion=args.min_ins_size)
 
     else:
+        tre_finder.min_cluster_size = args.min_cluster_size
         variants = tre_finder.genotype(args.loci)
 
     # output both bed and tsv

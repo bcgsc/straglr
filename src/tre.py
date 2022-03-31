@@ -44,8 +44,7 @@ class TREFinder:
         self.min_str_len = min_str_len
 
         self.min_support = min_support
-        # min_cluster_size cannot be larger than min_support
-        self.min_cluster_size = min_cluster_size if min_cluster_size < self.min_support else self.min_support
+        self.min_cluster_size = min_cluster_size
 
         self.tmp_files = set()
 
@@ -1173,6 +1172,8 @@ class TREFinder:
 
                 gt = Variant.get_genotype(variant)
                 for allele, support in gt:
+                    if type(allele) is str:
+                        continue
                     supports.append(support)
                     if self.genotype_in_size:
                         sizes.append(allele)
