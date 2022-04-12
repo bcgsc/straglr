@@ -76,11 +76,17 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100
         locus = (cols[0], int(cols[1]), int(cols[2]), cols[3], float(cols[4]))
         ref_size = locus[-1]
         proband_alleles = []
+        expanded_allele_supports = []
+
         for i in range(5, 8, 2):
             if cols[i] == '-' or float(cols[i]) - ref_size < min_expansion:
                 continue
+            proband_calls = cols[i+1].split(',')
+            if len(proband_calls) < min_support:
+                continue
             proband_alleles.append(float(cols[i]))
-        expanded_loci[locus] = proband_alleles, ['-'], '-'
+            expanded_allele_supports.append(len(proband_calls))
+        expanded_loci[locus] = proband_alleles, ['-'], '-', ','.join(list(map(str, expanded_allele_supports)))
 
     for cols in common_loci:
         proband_cols = cols[:9]
@@ -89,6 +95,7 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100
         ref_size = locus[-1]
 
         expanded_alleles = []
+        expanded_allele_supports = []
         parent_alleles = []
         pvals = []
         # loop thru proband allele
@@ -129,12 +136,13 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100
             if not not_expanded:
                 print('ee expanded', locus, proband_allele, proband_calls, parent_cols, parent_pvals, type(parent_pvals[0]), proband_allele, parent_alleles, proband_allele-max(parent_alleles))
                 expanded_alleles.append(proband_allele)
+                expanded_allele_supports.append(len(proband_calls))
                 pvals.append(','.join(parent_pvals))
             else:
                 print('ee not_expanded', locus, proband_allele, proband_calls, parent_cols)
             
         if expanded_alleles:
-            expanded_loci[locus] = expanded_alleles, [','.join(list(map(str, parent_alleles)))], ';'.join(pvals)
+            expanded_loci[locus] = expanded_alleles, [','.join(list(map(str, parent_alleles)))], ';'.join(pvals), ','.join(list(map(str, expanded_allele_supports)))
             print('ff', locus, expanded_loci[locus], pvals)
 
     return expanded_loci
@@ -155,21 +163,24 @@ def vs_all_parents(vs_parents):
         #expanded_alleles_str = ','.join(list(map(str, expanded_alleles)))
         parent_alleles = []
         pvals = []
+        proband_supports = []
         for p in (p1,p2):
             if p[1]:
                 parent_alleles.append(p[1][0])
                 pvals.append(p[2])
+                proband_supports.append(p[3])
             else:
                 parent_alleles.append('-')
                 pvals.append('-')
+                proband_supports.append('-')
         #parent_alleles_str = ';'.join(parent_alleles) if parent_alleles else '-;-'
-        print('yy1', locus, list(expanded_alleles), parent_alleles, pvals)
-        expanded_loci[locus] = list(expanded_alleles), parent_alleles, pvals
+        print('yy1', locus, list(expanded_alleles), parent_alleles, pvals, proband_supports)
+        expanded_loci[locus] = list(expanded_alleles), parent_alleles, pvals, proband_supports[0]
 
     return expanded_loci
 
 def output(expanded_loci, out_file):
-    header = ('chrom', 'start', 'end', 'repeat', 'ref_size', 'proband_allele', 'parent_alleles', 'pvals')
+    header = ('chrom', 'start', 'end', 'repeat', 'ref_size', 'proband_allele', 'proband_allele_support', 'parent_alleles', 'pvals')
     with open(out_file, 'w') as out:
         out.write('{}\n'.format('\t'.join(header)))
         for locus in sorted(expanded_loci.keys(), key=itemgetter(0,1,2)):
@@ -180,7 +191,7 @@ def output(expanded_loci, out_file):
             pvals = ';'.join(expanded_loci[locus][2])
             if pvals == '-;-':
                 pvals = '-'
-            cols = list(map(str, locus)) + [expanded_alleles, parent_alleles, pvals]
+            cols = list(map(str, locus)) + [expanded_alleles, expanded_loci[locus][3], parent_alleles, pvals]
             out.write('{}\n'.format('\t'.join(cols)))
 
 def parse_args():
