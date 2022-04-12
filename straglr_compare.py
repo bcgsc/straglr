@@ -28,7 +28,7 @@ def create_bed(alleles):
     print(bed_str)
     return BedTool(bed_str, from_string=True).sort()
 
-def parse_straglr_tsv(tsv, use_size=True, min_support=0, skip_chroms=['chrY']):
+def parse_straglr_tsv(tsv, use_size=True, skip_chroms=['chrY']):
     alleles = {}
     with open(tsv, 'r') as ff:
         for line in ff:
@@ -60,7 +60,7 @@ def parse_straglr_tsv(tsv, use_size=True, min_support=0, skip_chroms=['chrY']):
 
     return create_bed(alleles)
 
-def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100):
+def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100, min_support=0):
     expanded_loci = {}
     new_loci = []
     common_loci = []
@@ -87,8 +87,6 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100
         #locus = tuple(proband_cols[:5])
         locus = (proband_cols[0], int(proband_cols[1]), int(proband_cols[2]), proband_cols[3], float(proband_cols[4]))
         ref_size = locus[-1]
-        #proband_alleles = []
-        #proband_genotype = []
 
         expanded_alleles = []
         parent_alleles = []
@@ -98,6 +96,9 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100
             if proband_cols[i] == '-':
                 continue
             proband_calls = list(map(float, proband_cols[i].split(',')))
+            if len(proband_calls) < min_support:
+                continue
+
             proband_allele = float(proband_cols[i-1])
             if float(proband_cols[i-1]) - ref_size < min_expansion:
                 continue
@@ -200,10 +201,10 @@ def main():
     vs_parents = []
     for parent in args.parents:
         parent_bed = parse_straglr_tsv(parent, use_size=args.use_size)
-        vs_parents.append(vs_each_parent(proband_bed, parent_bed))
+        vs_parents.append(vs_each_parent(proband_bed, parent_bed, min_support=args.min_support))
 
     expanded_loci = vs_all_parents(vs_parents)
-    output(expanded_loci, 'exp3c.tsv')
+    output(expanded_loci, 'exp3d.tsv')
 
 main()
 
