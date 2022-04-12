@@ -25,7 +25,6 @@ def create_bed(alleles):
             cols.extend(['-'] * (ncols - len(cols)))
         bed_str += '{}\n'.format('\t'.join(cols))
 
-    print(bed_str)
     return BedTool(bed_str, from_string=True).sort()
 
 def parse_straglr_tsv(tsv, use_size=True, skip_chroms=['chrY']):
@@ -70,7 +69,6 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100
         else:
             common_loci.append(cols)
 
-    print(len(new_loci), len(common_loci))
     for cols in new_loci:
         #locus = tuple(cols[:5])
         locus = (cols[0], int(cols[1]), int(cols[2]), cols[3], float(cols[4]))
@@ -90,7 +88,6 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100
 
     for cols in common_loci:
         proband_cols = cols[:9]
-        #locus = tuple(proband_cols[:5])
         locus = (proband_cols[0], int(proband_cols[1]), int(proband_cols[2]), proband_cols[3], float(proband_cols[4]))
         ref_size = locus[-1]
 
@@ -126,7 +123,6 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100
                 parent_calls = list(map(float, parent_cols[j].split(',')))
 
                 result = stats.ttest_ind(np.array(parent_calls), np.array(proband_calls), alternative='less') 
-                print('zz', locus, parent_calls, proband_calls, result, result.pvalue<=0.05, np.format_float_scientific(result.pvalue, precision=2))
 
                 if result.pvalue > pval_cutoff or proband_allele - parent_allele + 1 < min_expansion:
                     not_expanded = True
@@ -134,16 +130,15 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff=0.001, min_expansion=100
                     parent_pvals.append(np.format_float_scientific(result.pvalue, precision=2))
 
             if not not_expanded:
-                print('ee expanded', locus, proband_allele, proband_calls, parent_cols, parent_pvals, type(parent_pvals[0]), proband_allele, parent_alleles, proband_allele-max(parent_alleles))
+                #print('expanded', locus, proband_allele, proband_calls, parent_cols, parent_pvals, type(parent_pvals[0]), proband_allele, parent_alleles, proband_allele-max(parent_alleles))
                 expanded_alleles.append(proband_allele)
                 expanded_allele_supports.append(len(proband_calls))
                 pvals.append(','.join(parent_pvals))
-            else:
-                print('ee not_expanded', locus, proband_allele, proband_calls, parent_cols)
+            #else:
+                #print('not_expanded', locus, proband_allele, proband_calls, parent_cols)
             
         if expanded_alleles:
             expanded_loci[locus] = expanded_alleles, [','.join(list(map(str, parent_alleles)))], ';'.join(pvals), ','.join(list(map(str, expanded_allele_supports)))
-            print('ff', locus, expanded_loci[locus], pvals)
 
     return expanded_loci
 
@@ -153,8 +148,6 @@ def vs_all_parents(vs_parents):
 
     expanded_loci = {}
     for locus in set(vs_parents[0].keys()) & set(vs_parents[1].keys()):
-        print('yy', locus, vs_parents[0][locus], vs_parents[1][locus])
-
         p1, p2 = vs_parents[0][locus], vs_parents[1][locus]
         expanded_alleles = set(p1[0]) & set(p2[0])
         if not expanded_alleles:
@@ -173,8 +166,6 @@ def vs_all_parents(vs_parents):
                 parent_alleles.append('-')
                 pvals.append('-')
                 proband_supports.append('-')
-        #parent_alleles_str = ';'.join(parent_alleles) if parent_alleles else '-;-'
-        print('yy1', locus, list(expanded_alleles), parent_alleles, pvals, proband_supports)
         expanded_loci[locus] = list(expanded_alleles), parent_alleles, pvals, proband_supports[0]
 
     return expanded_loci
@@ -182,7 +173,7 @@ def vs_all_parents(vs_parents):
 def output(expanded_loci, out_file):
     header = ('chrom', 'start', 'end', 'repeat', 'ref_size', 'proband_allele', 'proband_allele_support', 'parent_alleles', 'pvals')
     with open(out_file, 'w') as out:
-        out.write('{}\n'.format('\t'.join(header)))
+        out.write('#{}\n'.format('\t'.join(header)))
         for locus in sorted(expanded_loci.keys(), key=itemgetter(0,1,2)):
             expanded_alleles = ','.join(list(map(str, expanded_loci[locus][0])))
             parent_alleles = ';'.join(expanded_loci[locus][1])
@@ -196,8 +187,9 @@ def output(expanded_loci, out_file):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--proband", type=str, help="proband straglr results")
-    parser.add_argument("--parents", type=str, nargs='+', help="proband straglr results")
+    parser.add_argument("proband", type=str, help="proband straglr results")
+    parser.add_argument("parents", type=str, nargs='+', help="parent straglr results (maximum=2)")
+    parser.add_argument("output", type=str, help="output")
     parser.add_argument("--use_size", action='store_true', help="use size")
     parser.add_argument("--min_expansion", type=int, default=0, help="minimum expansion")
     parser.add_argument("--min_support", type=int, default=0, help="minimum support")
@@ -207,15 +199,20 @@ def parse_args():
 def main():
     args = parse_args()
 
+    if len(args.parents) > 2:
+        print('more than 2 parent results given, only first 2 will be used')
+        parents = args.parents[:2]
+    else:
+        parents = args.parents
     proband_bed = parse_straglr_tsv(args.proband, use_size=args.use_size)
 
     vs_parents = []
-    for parent in args.parents:
+    for parent in parents:
         parent_bed = parse_straglr_tsv(parent, use_size=args.use_size)
         vs_parents.append(vs_each_parent(proband_bed, parent_bed, min_support=args.min_support))
 
     expanded_loci = vs_all_parents(vs_parents)
-    output(expanded_loci, 'exp3d.tsv')
+    output(expanded_loci, args.output)
 
 main()
 
