@@ -574,7 +574,7 @@ class TREFinder:
 
         return matches
 
-    def extract_alleles_trf(self, trf_input, repeat_seqs, flank, clipped, bam, strands, patterns, too_far_from_read_end=200):
+    def extract_alleles_trf(self, trf_input, repeat_seqs, flank, clipped, bam, strands, patterns, reads_fasta, too_far_from_read_end=200):
         results = self.perform_trf(trf_input)
         same_pats = self.find_similar_long_patterns_gt(results, patterns)
 
@@ -655,12 +655,15 @@ class TREFinder:
                                 genome_end = int(locus[2])
                                 size -= diff
 
-                    #print('ff {} {} {} {} {} {} {} {} {} {}'.format(read, locus, size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end))
+                    #print('ff {} {} {} {} {} {} {} {} {} {} {} {}'.format(read, locus, strands[read], size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end, read_len))
                     if not read in alleles[locus]:
+                        if strands[read] == '-':
+                            rpos = read_len - rpos - size + 1
+
                         if genome_start < genome_end:
-                            alleles[tuple(locus)][read] = (rpos, pats, size, genome_start, genome_end)
+                            alleles[tuple(locus)][read] = (rpos, pats, size, genome_start, genome_end, strands[read])
                         else:
-                            alleles[tuple(locus)][read] = (rpos, pats, size, int(gstart), int(gend))
+                            alleles[tuple(locus)][read] = (rpos, pats, size, int(gstart), int(gend), strands[read])
 
         return self.alleles_to_variants(alleles)
 
@@ -678,7 +681,7 @@ class TREFinder:
 
         return read_seqs
 
-    def extract_alleles_regex(self, headers, repeat_seqs, flank, clipped, bam, strands, patterns):
+    def extract_alleles_regex(self, headers, repeat_seqs, flank, clipped, bam, strands, patterns, reads_fasta):
         alleles = defaultdict(dict)
 
         read_seqs = self.get_read_seqs(headers, bam)
@@ -701,10 +704,12 @@ class TREFinder:
                 read_seq = read_seqs[read]
                 rpos = read_seq.find(matched_seq)
                 size = len(matched_seq)
+                if strands[read] == '-':
+                    rpos = len(read_seq) - rpos - size + 1
                 #print('ff {} {} {} {}'.format(read, locus, size, rpos))
 
                 if not read in alleles[locus]:
-                    alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]))
+                    alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]), strands[read])
 
         return self.alleles_to_variants(alleles)
 
@@ -726,6 +731,7 @@ class TREFinder:
                                    alleles[locus][read][2], # size
                                    alleles[locus][read][3], # genome_start
                                    alleles[locus][read][4], # genome_end
+                                   alleles[locus][read][5], # strand
                                    ])
 
                 # update pattern counts
@@ -862,10 +868,11 @@ class TREFinder:
 
         return rescued
 
-    def get_alleles(self, loci, reads_fasta=None, closeness_to_end=50):
+    def get_alleles(self, loci, reads_fasta=[], closeness_to_end=50):
         bam = pysam.Samfile(self.bam, 'rb')
         if self.reads_fasta:
-            reads_fasta = pysam.Fastafile(self.reads_fasta)
+            for fa in self.reads_fasta:
+                reads_fasta.append(pysam.Fastafile(fa))
         genome_fasta = pysam.Fastafile(self.genome_fasta)
 
         trf_input = ''
@@ -884,7 +891,7 @@ class TREFinder:
             clipped = defaultdict(dict)
             alns = []
             for aln in bam.fetch(locus[0], locus[1] - split_neighbour_size, locus[2] + split_neighbour_size):
-                if reads_fasta is None and not aln.query_sequence:
+                if not reads_fasta and not aln.query_sequence:
                     continue
                 alns.append(aln)
                 locus_size = locus[2] - locus[1] + 1
@@ -966,7 +973,7 @@ class TREFinder:
                             generic.add(header)
                             repeat_seqs[header] = seq
 
-                        strands[read] = aln1.is_reverse
+                        strands[read] = '-' if aln1.is_reverse else '+'
 
                     else:
                         remove.add(read)
@@ -977,6 +984,8 @@ class TREFinder:
                     if missed:
                         qstart, qend, tpos, seq = missed
                         missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
+
+                        strands[read] = '-' if aln.is_reverse else '+'
         
             if missed_clipped:
                 rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
@@ -1016,7 +1025,7 @@ class TREFinder:
                         generic.add(header)
 
                     # for finding position of repeat sequence inside read
-                    strands[aln.query_name] = aln.is_reverse
+                    strands[aln.query_name] = '-' if aln.is_reverse else '+'
 
         variants = []
         if trf_input:
@@ -1026,7 +1035,8 @@ class TREFinder:
                                                      clipped,
                                                      bam,
                                                      strands,
-                                                     patterns))
+                                                     patterns,
+                                                     reads_fasta))
 
         if generic:
             variants.extend(self.extract_alleles_regex(generic,
@@ -1035,7 +1045,8 @@ class TREFinder:
                                                        clipped,
                                                        bam,
                                                        strands,
-                                                       patterns))
+                                                       patterns,
+                                                       reads_fasta))
 
         # set genotyping configuration (class variable)
         Variant.set_genotype_config(min_reads=self.min_cluster_size, max_num_clusters=self.max_num_clusters)

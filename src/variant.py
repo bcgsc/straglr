@@ -98,7 +98,7 @@ class Variant:
         if variant[5]:
             n = 0
             for allele in sorted(variant[5], reverse=True):
-                reads = [a for a in variant[3] if a[7] == allele and a[4] - ref_size >= min_expansion]
+                reads = [a for a in variant[3] if a[8] == allele and a[4] - ref_size >= min_expansion]
                 n += len(reads)
 
             if n >= min_reads:
@@ -139,12 +139,14 @@ class Allele:
     4: size
     5: genome_start
     6: genome_end
-    7: genotype
+    7: strand
+    8: genotype
     """
     tsv_headers = ['read',
                    'copy_number',
                    'size',
                    'read_start',
+                   'strand',
                    'allele',
                    ]
 
@@ -162,5 +164,6 @@ class Allele:
                         cols[4],
                         cols[1],
                         cols[7],
+                        cols[8],
                         ]
         return list(map(str, cols_ordered))

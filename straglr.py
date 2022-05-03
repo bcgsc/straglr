@@ -11,7 +11,7 @@ def parse_args():
     parser.add_argument("bam", type=str, help="bam file")
     parser.add_argument("genome_fasta", type=str, help="genome_fasta")
     parser.add_argument("out_prefix", type=str, help="output prefix")
-    parser.add_argument("--reads_fasta", type=str, help="read indexed fasta file")
+    parser.add_argument("--reads_fasta", type=str, nargs='+', help="read indexed fasta file(s)")
     parser.add_argument("--min_ins_size", type=int, default=100, help="minimum insertion size. Default:100")
     parser.add_argument("--exclude", type=str, help="bed file to exclude regions")
     parser.add_argument("--regions", type=str, help="bed file for scanning only specific regions")

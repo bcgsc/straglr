@@ -86,9 +86,10 @@ class INSFinder:
                 batched_results = parallel_process(self.examine_regions, batches, self.nprocs)
                 all_ins = combine_batch_results(batched_results, type(batched_results[0]))
             else:
-                reads_fasta = None
+                reads_fasta = []
                 if self.reads_fasta:
-                    reads_fasta = pysam.Fastafile(self.reads_fasta)
+                    for fa in self.reads_fasta:
+                        reads_fasta.append(pysam.Fastafile(fa))
                 all_ins = []
                 for region in regions:
                     all_ins.extend(self.examine_region(region, bam=bam, reads_fasta=reads_fasta))
@@ -140,7 +141,17 @@ class INSFinder:
             return True
 
     @classmethod
-    def get_seq(cls, fasta, name, reverse, coords=None):
+    def get_seq(cls, fastas, name, reverse, coords=None):
+        try:
+            for fasta in fastas:
+                seq = cls.get_seq_from_fasta(fasta, name, reverse, coords)
+                if seq is not None:
+                    return seq
+        except:
+            return None
+
+    @classmethod
+    def get_seq_from_fasta(cls, fasta, name, reverse, coords=None):
         try:
             seq = fasta.fetch(name)
             if reverse:
@@ -155,9 +166,10 @@ class INSFinder:
     def examine_regions(self, regions):
         """worker wrapper for examine_region"""
         bam = pysam.Samfile(self.bam, 'rb')
-        reads_fasta = None
+        reads_fasta = []
         if self.reads_fasta:
-            reads_fasta = pysam.FastaFile(self.reads_fasta)
+            for fa in self.reads_fasta:
+                reads_fasta.append(pysam.FastaFile(fa))
 
         ins_list = []
         for region in regions:
@@ -187,7 +199,7 @@ class INSFinder:
         clipped_pairs = defaultdict(dict)
         read_spans = {}
         for aln in bam.fetch(region[0], int(region[1]), int(region[2])):
-            if reads_fasta is None and not aln.query_sequence:
+            if not reads_fasta and not aln.query_sequence:
                 continue
 
             if not aln.query_name in read_spans:
