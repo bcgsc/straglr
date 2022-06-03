@@ -3,7 +3,11 @@
 Straglr is a tool that can be used for genome-wide scans for tandem repeat(TR) expansions or targeted genotyping using long-read alignments.
 
 ## Installation
-Straglr is implemented in Python 3.7 and has been tested in Linux environment.
+Straglr is implemented in Python 3.7 and has been tested in Linux environment. Prior to installation, ensure that `pip` and `wheel` are updated. 
+```
+pip install -U pip wheel
+```
+
 Straglr can be installed via pip:
 
 ```
