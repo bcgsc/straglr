@@ -5,6 +5,7 @@ from scipy import stats
 import numpy as np
 from operator import itemgetter
 import sys
+import os
 
 def create_bed(alleles):
     bed_str = ''
@@ -59,11 +60,11 @@ def parse_straglr_tsv(tsv, use_size=True, skip_chroms=None):
 
     return create_bed(alleles)
 
-def vs_each_parent(proband_bed, parent_bed, pval_cutoff, min_expansion=100, min_support=0):
+def vs_each_control(test_bed, control_bed, pval_cutoff, min_expansion=100, min_support=0):
     expanded_loci = {}
     new_loci = []
     common_loci = []
-    for cols in proband_bed.intersect(parent_bed, loj=True, wao=True, f=0.9, F=0.9).saveas('abc.bed'):
+    for cols in test_bed.intersect(control_bed, loj=True, wao=True, f=0.9, F=0.9):
         if cols[-2] == '.':
             new_loci.append(cols)
         else:
@@ -73,125 +74,128 @@ def vs_each_parent(proband_bed, parent_bed, pval_cutoff, min_expansion=100, min_
         #locus = tuple(cols[:5])
         locus = (cols[0], int(cols[1]), int(cols[2]), cols[3], float(cols[4]))
         ref_size = locus[-1]
-        proband_alleles = []
+        test_alleles = []
         supports = {}
 
         for i in range(5, 8, 2):
             if cols[i] == '-' or float(cols[i]) - ref_size < min_expansion:
                 continue
-            proband_calls = cols[i+1].split(',')
-            if len(proband_calls) < min_support:
+            test_calls = cols[i+1].split(',')
+            if len(test_calls) < min_support:
                 continue
-            proband_alleles.append(float(cols[i]))
-            supports[float(cols[i])] = len(proband_calls)
-        expanded_loci[locus] = proband_alleles, ['-'], '-', supports
+            test_alleles.append(float(cols[i]))
+            supports[float(cols[i])] = len(test_calls)
+        expanded_loci[locus] = test_alleles, ['-'], '-', supports
 
     for cols in common_loci:
-        proband_cols = cols[:9]
-        locus = (proband_cols[0], int(proband_cols[1]), int(proband_cols[2]), proband_cols[3], float(proband_cols[4]))
+        test_cols = cols[:9]
+        locus = (test_cols[0], int(test_cols[1]), int(test_cols[2]), test_cols[3], float(test_cols[4]))
         ref_size = locus[-1]
 
         expanded_alleles = []
         supports = {}
-        parent_alleles = []
+        control_alleles = []
         pvals = []
-        # loop thru proband allele
+        # loop thru test allele
         for i in range(6, 9, 2):
-            if proband_cols[i] == '-':
+            if test_cols[i] == '-':
                 continue
-            proband_calls = list(map(float, proband_cols[i].split(',')))
-            if len(proband_calls) < min_support:
-                continue
-
-            proband_allele = float(proband_cols[i-1])
-            if float(proband_cols[i-1]) - ref_size < min_expansion:
+            test_calls = list(map(float, test_cols[i].split(',')))
+            if len(test_calls) < min_support:
                 continue
 
-            # loop thru parents
+            test_allele = float(test_cols[i-1])
+            if float(test_cols[i-1]) - ref_size < min_expansion:
+                continue
+
+            # loop thru controls
             not_expanded = False
-            parent_cols = cols[9:9+10]
-            parent_pvals = []
+            control_cols = cols[9:9+10]
+            control_pvals = []
 
-            # loop thru parent alleles
+            # loop thru control alleles
             for j in range(-3, 0, 2):
-                if parent_cols[j] == '-':
+                if control_cols[j] == '-':
                     continue
                
-                parent_allele = float(parent_cols[j-1])
-                if not parent_allele in parent_alleles:
-                    parent_alleles.append(parent_allele)
-                parent_calls = list(map(float, parent_cols[j].split(',')))
+                control_allele = float(control_cols[j-1])
+                if not control_allele in control_alleles:
+                    control_alleles.append(control_allele)
+                control_calls = list(map(float, control_cols[j].split(',')))
 
-                result = stats.ttest_ind(np.array(parent_calls), np.array(proband_calls), alternative='less') 
+                result = stats.ttest_ind(np.array(control_calls), np.array(test_calls), alternative='less') 
 
-                if result.pvalue > pval_cutoff or proband_allele - parent_allele + 1 < min_expansion:
+                if result.pvalue > pval_cutoff or test_allele - control_allele + 1 < min_expansion:
                     not_expanded = True
                 else:
-                    parent_pvals.append(np.format_float_scientific(result.pvalue, precision=2))
+                    control_pvals.append(np.format_float_scientific(result.pvalue, precision=2))
 
             if not not_expanded:
-                #print('expanded', locus, proband_allele, proband_calls, parent_cols, parent_pvals, type(parent_pvals[0]), proband_allele, parent_alleles, proband_allele-max(parent_alleles))
-                expanded_alleles.append(proband_allele)
-                supports[proband_allele] = len(proband_calls)
-                pvals.append(','.join(parent_pvals))
+                #print('expanded', locus, test_allele, test_calls, control_cols, control_pvals, type(control_pvals[0]), test_allele, control_alleles, test_allele-max(control_alleles))
+                expanded_alleles.append(test_allele)
+                supports[test_allele] = len(test_calls)
+                pvals.append(','.join(control_pvals))
             #else:
-                #print('not_expanded', locus, proband_allele, proband_calls, parent_cols)
+                #print('not_expanded', locus, test_allele, test_calls, control_cols)
             
         if expanded_alleles:
-            expanded_loci[locus] = expanded_alleles, [','.join(list(map(str, parent_alleles)))], ';'.join(pvals), supports
+            expanded_loci[locus] = expanded_alleles, [','.join(list(map(str, control_alleles)))], ';'.join(pvals), supports
 
     return expanded_loci
 
-def vs_all_parents(vs_parents):
-    if len(vs_parents) == 1:
-        return vs_parents[0]
+def vs_all_controls(vs_controls):
+    if len(vs_controls) == 1:
+        return vs_controls[0]
 
     expanded_loci = {}
-    for locus in set(vs_parents[0].keys()) & set(vs_parents[1].keys()):
-        p1, p2 = vs_parents[0][locus], vs_parents[1][locus]
-        expanded_alleles = list(set(p1[0]) & set(p2[0]))
+    for locus in set.intersection(*map(set, vs_controls)):
+        expanded_alleles = set.intersection(*map(set, [vc[locus][0] for vc in vs_controls]))
         if not expanded_alleles:
             continue
 
         supports = []
         for allele in expanded_alleles:
-            if allele in p1[3]:
-                supports.append(p1[3][allele])
-            elif allele in p2[3]:
-                supports.append(p2[3][allele])
+            for vc in vs_controls:
+                if allele in vc[locus][3]:
+                    supports.append(vc[locus][3][allele])
+                    break
 
-        parent_alleles = []
+        control_alleles = []
         pvals = []
-        for p in (p1,p2):
-            if p[1]:
-                parent_alleles.append(p[1][0])
-                pvals.append(p[2])
+        for vc in vs_controls:
+            if vc[locus][1]:
+                control_alleles.append(vc[locus][1][0])
+                pvals.append(vc[locus][2])
             else:
-                parent_alleles.append('-')
+                control_alleles.append('-')
                 pvals.append('-')
-        expanded_loci[locus] = list(expanded_alleles), parent_alleles, pvals, ','.join(map(str, list(supports)))
+        #print('bb', locus, supports, control_alleles, pvals)
+        expanded_loci[locus] = list(expanded_alleles), control_alleles, pvals, ','.join(map(str, list(supports)))
 
     return expanded_loci
 
 def output(expanded_loci, out_file):
-    header = ('chrom', 'start', 'end', 'repeat', 'ref_size', 'proband_allele', 'proband_allele_support', 'parent_alleles', 'pvals')
+    header = ('chrom', 'start', 'end', 'repeat', 'ref_size', 'test_allele', 'test_allele_support', 'control_alleles', 'pvals')
     with open(out_file, 'w') as out:
         out.write('#{}\n'.format('\t'.join(header)))
         for locus in sorted(expanded_loci.keys(), key=itemgetter(0,1,2)):
             expanded_alleles = ','.join(list(map(str, expanded_loci[locus][0])))
-            parent_alleles = ';'.join(expanded_loci[locus][1])
-            if parent_alleles == '-;-':
-                parent_alleles = '-'
+            control_alleles = ';'.join(expanded_loci[locus][1])
+            if control_alleles == '-;-':
+                control_alleles = '-'
             pvals = ';'.join(expanded_loci[locus][2])
             if pvals == '-;-':
                 pvals = '-'
-            cols = list(map(str, locus)) + [expanded_alleles, expanded_loci[locus][3], parent_alleles, pvals]
+            cols = list(map(str, locus)) + [expanded_alleles, expanded_loci[locus][3], control_alleles, pvals]
             out.write('{}\n'.format('\t'.join(cols)))
+
+def parse_list(list_file):
+    return None
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("proband", type=str, help="proband straglr results")
-    parser.add_argument("parents", type=str, nargs='+', help="parent straglr results (maximum=2)")
+    parser.add_argument("test", type=str, help="Straglr results of test_sample")
+    parser.add_argument("controls", type=str, nargs='+', help="controls")
     parser.add_argument("output", type=str, help="output")
     parser.add_argument("--use_size", action='store_true', help="use size")
     parser.add_argument("--min_expansion", type=int, default=0, help="minimum expansion")
@@ -204,6 +208,36 @@ def parse_args():
 def main():
     args = parse_args()
 
+    control_results = []
+    control_bams = []
+    print(args.controls, type(args.controls))
+    if type(args.controls) == str:
+        parse_list(args.controls)
+    elif type(args.controls) == list:
+        print(os.path.splitext(args.controls[0])[1])
+        if os.path.splitext(args.controls[0])[1] == '.tsv':
+            control_results = args.controls
+        elif os.path.splitext(args.controls[0])[1] == '.bam':
+            control_bams = args.controls
+
+    if not control_results and not control_bams:
+        sys.exit()
+
+    expanded_loci = {}
+    test_bed = parse_straglr_tsv(args.test, use_size=args.use_size, skip_chroms=args.skip_chroms)
+    if control_results:
+        vs_controls = []
+        for control_result in control_results:
+            print('cc', control_result)
+            control_bed = parse_straglr_tsv(control_result, use_size=args.use_size)
+            vs_controls.append(vs_each_control(test_bed, control_bed, args.pval_cutoff, min_support=args.min_support))
+    
+        if vs_controls:
+            expanded_loci = vs_all_controls(vs_controls)
+
+    if expanded_loci:
+        output(expanded_loci, args.output)
+    ''' 
     if len(args.parents) > 2:
         print('more than 2 parent results given, only first 2 will be used')
         parents = args.parents[:2]
@@ -218,6 +252,5 @@ def main():
 
     expanded_loci = vs_all_parents(vs_parents)
     output(expanded_loci, args.output)
-
+    '''
 main()
-
