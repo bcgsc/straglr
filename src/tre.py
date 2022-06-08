@@ -1139,8 +1139,10 @@ class TREFinder:
         loci = []
         with open(loci_bed, 'r') as ff:
             for line in ff:
+                if line[0] == '#':
+                    continue
                 cols = line.rstrip().split()
-                if len(cols) == 4:
+                if len(cols) >= 4:
                     if len(cols[3]) <= self.max_str_len:
                         loci.append((cols[0], int(cols[1]), int(cols[2]), cols[3]))
 
