@@ -1143,8 +1143,10 @@ class TREFinder:
                     continue
                 cols = line.rstrip().split()
                 if len(cols) >= 4:
-                    if len(cols[3]) <= self.max_str_len:
-                        loci.append((cols[0], int(cols[1]), int(cols[2]), cols[3]))
+                    self.max_str_len = 10000
+                    self.min_str_len = 2
+                    #if len(cols[3]) <= self.max_str_len:
+                    loci.append((cols[0], int(cols[1]), int(cols[2]), cols[3]))
 
         # use more senstitive trf params to capture smaller alleles
         self.make_trf_sensitive()
