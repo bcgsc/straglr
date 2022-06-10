@@ -207,7 +207,7 @@ def olap_gtf(bed, gtf_file):
     skipped_types = ('retained_intron', 'nonsense_mediated_decay', 'processed_transcript')
     olaps = defaultdict(list)
     assigned = {}
-    for cols in bed.sort().intersect(gtf, wao=True, f=1.0):
+    for cols in bed.intersect(gtf, wao=True, f=1.0):
         locus = tuple(cols[:3])
 
         if cols[3] == '.':
@@ -260,14 +260,34 @@ def olap_gtf(bed, gtf_file):
 
     return assigned
 
-def locate_events(expanded_loci, gtf):
+def olap_bed(bed, annot_file, feature_type=None):
+    annot_bed = BedTool(annot_file)
+    olaps = defaultdict(list)
+    for cols in bed.intersect(annot_bed, wao=True, f=1.0).moveto('ee.bed'):
+        locus = tuple(cols[:3])
+        feature = cols[6]
+        if feature == '.':
+            continue
+        if feature_type is not None:
+            feature = '{}:{}'.format(feature_type, feature)
+        olaps[locus].append(feature)
+
+    return olaps
+
+def locate_events(expanded_loci, gtf, enhancers_bed, promoters_bed):
     bed = create_simple_bed(list(expanded_loci.keys()))
-    genic_locs = olap_gtf(bed, gtf)
+    genic_locs = olap_gtf(bed, gtf) if gtf is not None else {}
+    promoter_olaps = olap_bed(bed, promoters_bed, feature_type='promoter') if promoters_bed is not None else {}
+    enhancer_olaps = olap_bed(bed, enhancers_bed, feature_type='enhancer') if enhancers_bed is not None else {}
 
     for locus in expanded_loci.keys():
         key = tuple(map(str, locus[:3]))
         if key in genic_locs and genic_locs[key] is not None:
             expanded_loci[locus].append(genic_locs[key])
+        elif key in promoter_olaps:
+            expanded_loci[locus].append(','.join(promoter_olaps[key]))
+        elif key in enhancer_olaps:
+            expanded_loci[locus].append(','.join(enhancer_olaps[key]))
         else:
             expanded_loci[locus].append('-')
 
@@ -304,6 +324,8 @@ def parse_args():
     parser.add_argument("--skip_chroms", type=str, nargs='+', help="skip chromosomes")
     parser.add_argument("--pval_cutoff", type=float, default=0.001,  help="p-value cutoff for testing T-test hypothesis")
     parser.add_argument("--gtf", type=str, help="gtf")
+    parser.add_argument("--promoters", type=str, help="promoters bed file")
+    parser.add_argument("--enhancers", type=str, help="enhancers bed file")
     parser.add_argument("--no_strand_version", action='store_true', help="no strand version of Straglr used")
     args = parser.parse_args()
     return args
@@ -343,9 +365,9 @@ def main():
 
     if expanded_loci:
         has_gene = False
-        if args.gtf:
+        if args.gtf or args.enhancers:
             has_gene = True
-            locate_events(expanded_loci, args.gtf)
+            locate_events(expanded_loci, args.gtf, args.enhancers, args.promoters)
         output(expanded_loci, args.output, has_gene=has_gene)
 
 main()
