@@ -1,6 +1,6 @@
 import argparse
-from pybedtools import BedTool
-from collections import defaultdict
+from pybedtools import BedTool, create_interval_from_list
+from collections import defaultdict, Counter
 from scipy import stats
 import numpy as np
 from operator import itemgetter
@@ -8,7 +8,7 @@ import sys
 import os
 import re
 
-def create_bed(alleles):
+def create_straglr_bed(alleles):
     bed_str = ''
     loci = defaultdict(dict)
     max_num_alleles = 0
@@ -28,6 +28,13 @@ def create_bed(alleles):
         bed_str += '{}\n'.format('\t'.join(cols))
 
     return BedTool(bed_str, from_string=True).sort()
+
+def create_simple_bed(loci):
+    bed_str = ''
+    for locus in loci:
+        bed_str += '{}\n'.format('\t'.join(list(map(str, locus[:3]))))
+
+    return BedTool(bed_str, from_string=True).sort().moveto('ss.bed')
 
 def parse_straglr_tsv(tsv, use_size=True, skip_chroms=None, no_strand_version=False):
     alleles = {}
@@ -67,7 +74,7 @@ def parse_straglr_tsv(tsv, use_size=True, skip_chroms=None, no_strand_version=Fa
             else:
                 alleles[locus][allele].append(copy_num)
 
-    return create_bed(alleles)
+    return create_straglr_bed(alleles)
 
 def vs_each_control(test_bed, control_bed, pval_cutoff, min_expansion=100, min_support=0, label=None):
     expanded_loci = {}
@@ -190,12 +197,84 @@ def vs_all_controls(vs_controls):
         else:
             expansion = round(np.median(list(expanded_alleles)) - np.median(control_alleles_list), 1)
         
-        expanded_loci[locus] = list(expanded_alleles), control_alleles, pvals, ','.join(map(str, list(supports))), expansion
+        expanded_loci[locus] = [list(expanded_alleles), control_alleles, pvals, ','.join(map(str, list(supports))), expansion]
 
     return expanded_loci
 
-def output(expanded_loci, out_file):
-    header = ('chrom', 'start', 'end', 'repeat', 'ref_size', 'test_allele', 'test_allele_support', 'expansion', 'control_alleles', 'pvals')
+def olap_gtf(bed, gtf_file):
+    gtf = BedTool(gtf_file)
+
+    skipped_types = ('retained_intron', 'nonsense_mediated_decay', 'processed_transcript')
+    olaps = defaultdict(list)
+    assigned = {}
+    for cols in bed.sort().intersect(gtf, wao=True, f=1.0):
+        locus = tuple(cols[:3])
+
+        if cols[3] == '.':
+            assigned[locus] = None
+            continue
+        feature = cols[5]
+
+        gff = create_interval_from_list(cols[3:-1])
+        gene = gff.attrs['gene_name']
+        transcript = None
+        transcript_type = None
+        gene_type = None
+        if 'transcript_type' in gff.attrs and gff.attrs['transcript_type'] in skipped_types:
+            continue
+        if 'gene_type' in gff.attrs and gff.attrs['gene_type'] in skipped_types:
+            continue
+
+        if 'transcript_id' in gff.attrs:
+            transcript = gff.attrs['transcript_id']
+        if 'transcript_type' in gff.attrs:
+            transcript_type = gff.attrs['transcript_type']
+        if 'gene_type' in gff.attrs:
+            gene_type = gff.attrs['gene_type']
+
+        olaps[locus].append((feature, gene, gene_type))
+
+    for locus, features in olaps.items():
+        cds = [f for f in features if f[0] == 'CDS']
+        exons = [f for f in features if f[0] == 'exon']
+        transcripts = [f for f in features if f[0] == 'transcript']
+        
+        if cds:
+            gene_counts = Counter(f[1] for f in cds)
+            gene = gene_counts.most_common(1)[0][0]
+            assigned[locus] = '{}:{}'.format('CDS', gene)
+        elif exons:
+            gene_counts = Counter(f[1] for f in exons)
+            gene = gene_counts.most_common(1)[0][0]
+            assigned[locus] = '{}:{}'.format('exon', gene)
+        elif transcripts:
+            coding_genes = [t for t in transcripts if t[2] == 'protein_coding']
+            if coding_genes:
+                gene_counts = Counter(f[1] for f in coding_genes)
+                gene = gene_counts.most_common(1)[0][0]
+                assigned[locus] = '{}:{}'.format('intron', gene)
+            else:
+                gene_counts = Counter(f[1] for f in transcripts)
+                gene = gene_counts.most_common(1)[0][0]
+                assigned[locus] = '{}:{}'.format('intron', gene) 
+
+    return assigned
+
+def locate_events(expanded_loci, gtf):
+    bed = create_simple_bed(list(expanded_loci.keys()))
+    genic_locs = olap_gtf(bed, gtf)
+
+    for locus in expanded_loci.keys():
+        key = tuple(map(str, locus[:3]))
+        if key in genic_locs and genic_locs[key] is not None:
+            expanded_loci[locus].append(genic_locs[key])
+        else:
+            expanded_loci[locus].append('-')
+
+def output(expanded_loci, out_file, has_gene=False):
+    header = ['chrom', 'start', 'end', 'repeat', 'ref_size', 'test_allele', 'test_allele_support', 'expansion', 'control_alleles', 'pvals']
+    if has_gene:
+        header.append('gene')
     with open(out_file, 'w') as out:
         out.write('#{}\n'.format('\t'.join(header)))
         for locus in sorted(expanded_loci.keys(), key=itemgetter(0,1,2)):
@@ -210,10 +289,9 @@ def output(expanded_loci, out_file):
                 pvals = '-'
 
             cols = list(map(str, locus)) + [expanded_alleles, expanded_loci[locus][3], str(expanded_loci[locus][4]), control_alleles, pvals]
+            if has_gene:
+                cols.append(expanded_loci[locus][5])
             out.write('{}\n'.format('\t'.join(cols)))
-
-def parse_list(list_file):
-    return None
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -225,6 +303,7 @@ def parse_args():
     parser.add_argument("--min_support", type=int, default=0, help="minimum support")
     parser.add_argument("--skip_chroms", type=str, nargs='+', help="skip chromosomes")
     parser.add_argument("--pval_cutoff", type=float, default=0.001,  help="p-value cutoff for testing T-test hypothesis")
+    parser.add_argument("--gtf", type=str, help="gtf")
     parser.add_argument("--no_strand_version", action='store_true', help="no strand version of Straglr used")
     args = parser.parse_args()
     return args
@@ -263,6 +342,10 @@ def main():
             expanded_loci = vs_all_controls(vs_controls)
 
     if expanded_loci:
-        output(expanded_loci, args.output)
+        has_gene = False
+        if args.gtf:
+            has_gene = True
+            locate_events(expanded_loci, args.gtf)
+        output(expanded_loci, args.output, has_gene=has_gene)
 
 main()
