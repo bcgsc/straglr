@@ -104,7 +104,7 @@ class TREFinder:
 
         return results
 
-    def extract_tres(self, ins_list, target_flank=2000):
+    def extract_tres(self, ins_list, target_flank=3000):
         genome_fasta = pysam.Fastafile(self.genome_fasta)
 
         # prepare input for trf
@@ -153,31 +153,23 @@ class TREFinder:
         return expansions
     
     def find_similar_long_patterns_ins(self, results, min_len=4):
-        all_pats = {}
+        queries = set()
+        targets = set()
         for seq_id in results.keys():
-            all_pats[seq_id] = {'query': set(), 'target': set()}
             for seq_type in results[seq_id].keys():
                 for result in results[seq_id][seq_type]:
                     if len(result[13]) >= min_len:
                         if seq_type == 'i':
-                            all_pats[seq_id]['query'].add(result[13])
+                            queries.add(result[13])
                         else:
-                            all_pats[seq_id]['target'].add(result[13])
+                            targets.add(result[13])
 
         same_pats = {}
-        for seq_id in all_pats.keys():
-            queries = set()
-            targets = set()
-            if all_pats[seq_id]['query'] and all_pats[seq_id]['target']:
-                queries |= all_pats[seq_id]['query']
-                targets |= all_pats[seq_id]['target']
-                blastn_out = self.align_patterns(queries, targets, word_size=4)
-                if blastn_out and os.path.exists(blastn_out):
-                    results = self.parse_pat_blastn(blastn_out)
-                    if results:
-                        for query in results.keys():
-                            same_pats[query] = results[query]
-
+        if queries and targets:
+            blastn_out = self.align_patterns(queries, targets)
+            if blastn_out and os.path.exists(blastn_out):
+                same_pats = self.parse_pat_blastn(blastn_out) 
+        
         return same_pats
 
     def is_same_repeat(self, reps, same_pats=None, min_fraction=0.5):
@@ -259,7 +251,7 @@ class TREFinder:
             filtered_results['i'] = [r for r in result['i'] if float(r[1] - r[0] + 1) / ins_len >= full_cov]
             filtered_patterns['i'] = [r[13] for r in filtered_results['i']]
 
-        mid_pts = self.flank_len + mid_pt_buf, self.flank_len + 1 - mid_pt_buf
+        mid_pts = target_flank + mid_pt_buf, target_flank + 1 - mid_pt_buf
         for pt in ('q', 't'):
             if pt in result:
                 filtered_results[pt] = [r for r in result[pt] if r[0] <= mid_pts[0] and r[1] >= mid_pts[1]]
@@ -342,26 +334,22 @@ class TREFinder:
                     ins_dict[eid][1] = expansions[eid][1]
                     ins_dict[eid][2] = expansions[eid][2]
 
-    def merge_loci(self, tres, d=50):
-        loci_sorted = sorted([[tre[0], tre[1], tre[2], tre[8], len(tre[8])] for tre in tres], key=itemgetter(0, 1, 4))
-
-        bed_lines = []
+    def merge_loci(self, tres, d=100):
+        bed_line = ''
         for tre in tres:
-            bed_lines.append('\t'.join(map(str, [tre[0], tre[1], tre[2], tre[8]])))
-        bed_file = create_tmp_file('\n'.join(bed_lines))
-        self.tmp_files.add(bed_file)
+            for motif in tre[8].split(','):
+                bed_line += '{}\n'.format('\t'.join(map(str, [tre[0], tre[1], tre[2], motif])))
+        tres_bed = BedTool(bed_line, from_string=True)
+        tres_merged = tres_bed.sort().merge(d=d, c='4,2', o='distinct,count')
         if self.debug:
-            print('tre loci: {}'.format(bed_file))
-
-        tres_bed = BedTool(bed_file)
-        tres_merged = tres_bed.sort().merge(d=d, c='4', o='distinct')
-
+            tres_merged.saveas('tres_loci.bed')
+    
         merged = []
         for tre in tres_merged:
-            repeats = sorted(tre[-1].split(','), key=len)
+            repeats = sorted(tre[3].split(','), key=len)
             if len(repeats[0]) < self.min_str_len:
                 continue
-            merged.append([tre[0], int(tre[1]), int(tre[2]), tre[-1]])
+            merged.append([tre[0], int(tre[1]), int(tre[2]), tre[3]])
 
         return merged
 
@@ -382,28 +370,12 @@ class TREFinder:
         else:
             return found
 
-    def extract_aln_tuple2(self, aln, tcoord, search_direction, max_extend=200):
-        tuples_in_range = []
-        if search_direction == 'left':
-            tstart = tcoord - max_extend
-            tend = tcoord
-
-        else:
-            tstart = tcoord
-            tend = tcoord + max_extend
-
-        tuples_in_range = [p for p in aln.aligned_pairs if p[1] is not None and p[1] >= tstart and p[1] <= tend and p[0] is not None]
-
-
     def extract_subseq(self, aln, target_start, target_end, reads_fasta=None, max_extend=50):
         tstart = None
         tend = None
         qstart = None
         qend = None
         seq = None
-
-        self.extract_aln_tuple2(aln, target_start, 'left')
-        self.extract_aln_tuple2(aln, target_end, 'right')
 
         if target_start >= aln.reference_start and target_start <= aln.reference_end:
             aln_tuple = self.extract_aln_tuple(aln, target_start, 'left', max_extend=max_extend)
@@ -460,7 +432,7 @@ class TREFinder:
         results = self.parse_trf(output)
         return results
 
-    def find_similar_long_patterns_gt(self, results, patterns, min_len=15):
+    def find_similar_long_patterns_gt(self, results, patterns, min_len=15, word_size=4):
         same_pats = {}
         queries = defaultdict(set)
         targets = defaultdict(set)
@@ -471,20 +443,31 @@ class TREFinder:
             locus = tuple(cols[:3])
             seq_len = int(cols[-3])
             same_pats[locus] = None
-            targets[locus] |= set(patterns[seq].split(','))
+            targets[locus] |= set([s for s in patterns[seq].split(',') if len(s) >= word_size])
             for result in results[seq]:
                 if len(result[13]) >= min_len or (seq_len - 2*self.trf_flank_size < 50 and len(patterns[seq]) >= 6 and len(result[13]) >= 0.5 * len(patterns[seq])):
                     queries[locus].add(result[13])
 
+        qseqs = set()
+        tseqs = set()
         for locus in queries.keys():
-            if locus in queries and locus in targets:
-                blastn_out = self.align_patterns(queries[locus], targets[locus], locus=locus, word_size=4)
-                if blastn_out and os.path.exists(blastn_out):
-                    same_pats[locus] = self.parse_pat_blastn(blastn_out)
+            qseqs |= queries[locus]
+        for locus in targets.keys():
+            tseqs |= targets[locus]
 
+        same_pats = defaultdict(dict)
+        if qseqs and tseqs:
+            blastn_out = self.align_patterns(qseqs, tseqs)
+            hits = self.parse_pat_blastn(blastn_out)
+            if hits:
+                for query in hits:
+                    for locus in queries.keys():
+                        if query in queries[locus]:
+                            same_pats[locus][query] = hits[query]
+        
         return same_pats
 
-    def run_blastn(self, query_fa, target_fa, word_size):
+    def run_blastn_for_missed_clipped(self, query_fa, target_fa, word_size):
         query_file = create_tmp_file(query_fa)
         target_file = create_tmp_file(target_fa)
         blastn_out = create_tmp_file('')
@@ -497,9 +480,8 @@ class TREFinder:
                         query_file,
                         '-subject',
                         target_file,
-                        '-task blastn -word_size {} -outfmt 6 -out'.format(word_size),
+                        '-task blastn -word_size {} -evalue 1e-10 -outfmt 6 -out'.format(word_size),
                         blastn_out])
-        #print(cmd)
         # redirect stdout and stderr to devnull
         FNULL = open(os.devnull, 'w')
         returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
@@ -508,44 +490,34 @@ class TREFinder:
             return blastn_out
         else:
             sys.exit('cannot run {}'.format(cmd))
-    
-    def align_patterns(self, queries, targets, locus=None, word_size=5, min_word_size=4):
+   
+    def align_patterns(self, queries, targets, locus=None, word_size=4, min_word_size=4):
         query_fa = ''
         min_len = None
         for seq in queries:
-            if len(seq) - 1 < min_word_size:
-                continue
             if min_len is None or len(seq) < min_len:
                 min_len = len(seq)
-            for i in range(0, len(seq), 5):
-                pat = seq[i:] + seq[:i]
-                query_fa += '>{}\n{}\n'.format(pat, pat)
-
+            query_fa += '>{}\n{}\n'.format(seq, seq)
+        
         target_fa = ''
         for seq in targets:
-            if len(seq) - 1 < min_word_size:
-                continue
             if min_len is None or len(seq) < min_len:
                 min_len = len(seq)
-            target_fa += '>{}\n{}\n'.format(seq, seq)
+            target_fa += '>{}\n{}\n'.format(seq, seq*2)
 
         if query_fa and target_fa:
-            if min_len - 1 < word_size:
-                word_size = min_len - 1
-
             query_file = create_tmp_file(query_fa)
             target_file = create_tmp_file(target_fa)
             blastn_out = create_tmp_file('')
             self.tmp_files.add(query_file)
             self.tmp_files.add(target_file)
             self.tmp_files.add(blastn_out)
-
             cmd = ' '.join(['blastn',
                             '-query',
                             query_file,
                             '-subject',
                             target_file,
-                            '-task blastn -word_size {} -outfmt 6 -out'.format(word_size),
+                            '-task blastn -word_size {} -outfmt 6 -perc_identity 80 -qcov_hsp_perc 80 -out'.format(word_size),
                             blastn_out])
             #print(cmd)
             # redirect stdout and stderr to devnull
@@ -556,7 +528,7 @@ class TREFinder:
                 return blastn_out
             else:
                 sys.exit('cannot run {}'.format(cmd))
-
+            
     def parse_pat_blastn(self, blastn_out, min_pid=0.8, min_alen=0.8):
         matches = defaultdict(set)
         with open(blastn_out, 'r') as ff:
@@ -621,7 +593,7 @@ class TREFinder:
                     check_seq_len = abs(len(repeat_seqs[seq]) - 2 * flank)
                     span = float(combined_coords[0][1] - combined_coords[0][0] + 1)
                     min_span = 0.2 if check_seq_len < 50 else 0.5
-
+        
                     if combined_coords[0][0] >= (bounds[0] + too_far_from_read_end) or combined_coords[0][1] <= (bounds[1] - too_far_from_read_end):
                         if self.debug:
                             print('too_far_from_read_end', locus, read, combined_coords[0][0], combined_coords[0][1], seq_len, too_far_from_read_end)
@@ -760,21 +732,23 @@ class TREFinder:
         elif clipped_end == 'end' and aln.cigartuples[-1][0] >= 4 and aln.cigartuples[-1][0] <= 5:
             clipped_size = aln.cigartuples[-1][1]
 
+        tpos = None
         if clipped_size is not None:
             if clipped_end == 'start':
                 qstart, qend = 0, aln.query_alignment_start + self.trf_flank_size
-                tpos = aln.reference_start
-                tup = self.extract_aln_tuple(aln, gpos[1] + self.trf_flank_size, 'right')
+                tup = self.extract_aln_tuple(aln, min(aln.reference_start, gpos[0]) - self.trf_flank_size, 'left')
                 if tup:
                     qstart, qend = 0, tup[0]
                     tpos = tup[1]
+                return None
             else:
                 qstart, qend = aln.query_alignment_end - self.trf_flank_size, aln.infer_read_length()
-                tpos = aln.reference_end
-                tup = self.extract_aln_tuple(aln, gpos[0] - self.trf_flank_size, 'left')
+                tup = self.extract_aln_tuple(aln, max(aln.reference_end, gpos[1]) + self.trf_flank_size, 'right')
                 if tup:
                     qstart, qend = tup[0], aln.infer_read_length()
                     tpos = tup[1]
+                else:
+                    return None
 
             seq = None
             if not reads_fasta:
@@ -832,7 +806,7 @@ class TREFinder:
             pstart, pend, pseq = self.get_probe(clipped_end, locus, genome_fasta)
             query_fa += '>{}:{}:{}:{}:{}\n{}\n'.format(read, clipped_end, pstart, pend, len(pseq), pseq)
 
-        blastn_out = self.run_blastn(query_fa, target_fa, 6)
+        blastn_out = self.run_blastn_for_missed_clipped(query_fa, target_fa, 6)
         if os.path.exists(blastn_out):
             results = self.parse_blastn(blastn_out)
             if results:
@@ -883,6 +857,8 @@ class TREFinder:
         single_neighbour_size = 100
         split_neighbour_size = 500
         min_mapped = 0.5
+        all_clipped = {}
+        missed_clipped = []
 
         if self.strict:
             self.trf_flank_size = 80
@@ -894,6 +870,7 @@ class TREFinder:
                 if not reads_fasta and not aln.query_sequence:
                     continue
                 alns.append(aln)
+                strands[aln.query_name] = '-' if aln.is_reverse else '+'
                 locus_size = locus[2] - locus[1] + 1
 
                 # check split alignments first
@@ -911,13 +888,14 @@ class TREFinder:
                         check_end = 'start'
                     elif end_olap and not start_olap:
                         check_end = 'end'
-                    clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end, use_sa=False)
-                    if clipped_end is not None and aln.reference_start != partner_start:
+                    clipped_end = None
+                    if check_end is not None:
+                        clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end, use_sa=True)
+                    if clipped_end is not None:
                         clipped[aln.query_name][clipped_end] = (aln, partner_start)
 
             # clipped alignment
             remove = set()
-            missed_clipped = []
             for read in clipped.keys():
                 if len(clipped[read].keys()) == 2:
                     aln1 = clipped[read]['end'][0]
@@ -959,7 +937,7 @@ class TREFinder:
                             missed = self.extract_missed_clipped(aln, clipped_end, locus[1:], reads_fasta=reads_fasta)
                             if missed:
                                 qstart, qend, tpos, seq = missed
-                                missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
+                                missed_clipped.append([tuple(locus), clipped_end, read, qstart, qend, tpos, seq])
                             continue
    
                         # leave patterns out, some too long for trf header
@@ -973,8 +951,6 @@ class TREFinder:
                             generic.add(header)
                             repeat_seqs[header] = seq
 
-                        strands[read] = '-' if aln1.is_reverse else '+'
-
                     else:
                         remove.add(read)
                 else:
@@ -983,37 +959,25 @@ class TREFinder:
                     missed = self.extract_missed_clipped(aln, clipped_end, locus[1:], reads_fasta=reads_fasta)
                     if missed:
                         qstart, qend, tpos, seq = missed
-                        missed_clipped.append([locus, clipped_end, read, qstart, qend, tpos, seq])
-
-                        strands[read] = '-' if aln.is_reverse else '+'
-        
-            if missed_clipped:
-                rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
-                for read, clipped_end, qstart, qend, tstart, tend, seq, locus in rescued:
-                    aln = clipped[read][list(clipped[read].keys())[0]][0]
-                    # skip split alignment if start or end too close to repeat (with 50bp)
-                    if not(aln.reference_start + closeness_to_end) <= locus[1] and not (aln.reference_end - closeness_to_end >= locus[2]):
-                        continue
-                    header, fa_entry = self.create_trf_fasta(locus[:3], read, tstart, tend, qstart, seq, aln.infer_read_length())
-                    patterns[header] = locus[-1]
-                    repeat_seqs[header] = seq
-
-                    if not '*' in locus[-1]:
-                        trf_input += fa_entry
-                    else:
-                        generic.add(header)
-
+                        missed_clipped.append([tuple(locus), clipped_end, read, qstart, qend, tpos, seq])
+      
             for read in remove:
                 del clipped[read]
+
+            all_clipped[tuple(locus)] = clipped
 
             for aln in alns:
                 if aln.reference_start <= locus[1] - single_neighbour_size and\
                    aln.reference_end >= locus[2] + single_neighbour_size:
+                    # don't consider alignment if it's deemed split at locus
+                    if aln.query_name in clipped:
+                        continue
                     seq, tstart, tend, qstart = self.extract_subseq(aln, locus[1] - self.trf_flank_size, locus[2] + self.trf_flank_size, reads_fasta=reads_fasta)
                     if seq is None:
                         if self.debug:
                             print('problem getting seq1 {} {} {} {} {}'.format(aln.query_name, locus, tstart, tend, qstart))
                         continue
+                    
                     # leave patterns out, some too long for trf header
                     header, fa_entry = self.create_trf_fasta(locus[:3], aln.query_name, tstart, tend, qstart, seq, aln.infer_read_length())
                     patterns[header] = locus[-1]
@@ -1024,8 +988,23 @@ class TREFinder:
                     else:
                         generic.add(header)
 
-                    # for finding position of repeat sequence inside read
-                    strands[aln.query_name] = '-' if aln.is_reverse else '+'
+        if missed_clipped:
+            rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
+            for read, clipped_end, qstart, qend, tstart, tend, seq, locus in rescued:
+                clipped = all_clipped[locus]
+                aln = clipped[read][list(clipped[read].keys())[0]][0]
+                # skip split alignment if start or end too close to repeat (with 50bp)
+                if not(aln.reference_start + closeness_to_end) <= locus[1] and not (aln.reference_end - closeness_to_end >= locus[2]):
+                    continue
+                header, fa_entry = self.create_trf_fasta(locus[:3], read, tstart, tend, qstart, seq, aln.infer_read_length())
+                patterns[header] = locus[-1]
+                repeat_seqs[header] = seq
+
+                if not '*' in locus[-1]:
+                    trf_input += fa_entry
+                else:
+                    generic.add(header) 
+
 
         variants = []
         if trf_input:
@@ -1071,7 +1050,6 @@ class TREFinder:
                         tre_events.append(ins)
 
         if self.nprocs > 1:
-            #print('gg {}'.format(len(ins_list)))
             random.shuffle(ins_list)
             batches = list(split_tasks(ins_list, self.nprocs))
             if not batches:
