@@ -403,10 +403,10 @@ class INSFinder:
         return read_seq[rpos - size : rpos] + \
                read_seq[rpos + ins_len : rpos + ins_len + size]
  
-    def create_tmp_bed(self, ins_list):
+    def create_tmp_bed(self, ins_list, include_read=False):
         ins_bed = ''
         for ins in ins_list:
-            ins_bed += '{}\n'.format(INS.to_bed(ins, include_read=True))
+            ins_bed += '{}\n'.format(INS.to_bed(ins, include_read=include_read))
 
         ins_bed_file = create_tmp_file(ins_bed)
         self.tmp_files.add(ins_bed_file)
@@ -414,7 +414,7 @@ class INSFinder:
         return ins_bed_file
 
     def merge(self, ins_list, d=50):
-        ins_bed_file = self.create_tmp_bed(ins_list)
+        ins_bed_file = self.create_tmp_bed(ins_list, include_read=True)
         if self.debug:
             print('ins all {}'.format(ins_bed_file))
 
@@ -431,11 +431,7 @@ class INSFinder:
         return eids_merged
 
     def screen(self, ins_list):
-        ins_bed = ''
-        for ins in ins_list:
-            ins_bed += '{}\n'.format(INS.to_bed(ins))
-
-        ins_bed_file = create_tmp_file(ins_bed)
+        ins_bed_file = self.create_tmp_bed(ins_list)
 
         ins_all = BedTool(ins_bed_file)
         exclusions = BedTool(self.exclude)
@@ -471,6 +467,7 @@ class INSFinder:
                 for chrom in sorted(chroms):
                     chrom_spans += '{}\n'.format('\t'.join(map(str, [chrom, 0, chrom_lens[chrom]])))
                 chrom_bed_file = create_tmp_file(chrom_spans)
+                self.tmp_files.add(chrom_bed_file)
 
                 chrom_bed = BedTool(chrom_bed_file)
                 exclude_bed = BedTool(self.exclude)
