@@ -136,7 +136,7 @@ class TREFinder:
         return expansions
 
     def extract_genome_neighbour(self, chrom, tpos, w, genome_fasta):
-        return genome_fasta.fetch(chrom, tpos - w, tpos + w)
+        return genome_fasta.fetch(chrom, max(0, tpos - w), tpos + w)
     
     def analyze_trf(self, results, target_flank, full_cov=0.7):
         same_pats = self.find_similar_long_patterns_ins(results)
@@ -788,7 +788,7 @@ class TREFinder:
         else:
             pstart = locus[2]
             pend = pstart + self.trf_flank_size
-        pseq = genome_fasta.fetch(locus[0], pstart, pend)
+        pseq = genome_fasta.fetch(locus[0], max(0, pstart), pend)
         return pstart, pend, pseq
 
     def parse_blastn(self, blastn_out):
