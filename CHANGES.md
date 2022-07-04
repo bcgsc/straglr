@@ -24,3 +24,6 @@ v1.2.0
 - improve boundary definition of long(kb range) repeat loci in genome scan
 - added `--tmpdir` to allow user to specify TEMP location for generating tmp files
 - allowed `--min_cluster_size` to be bigger than `--min_suport` for genotyping mode only
+
+v1.2.0a
+- bugfix: make sure start coordinate is not negative when fetching sequence from reference genome
