@@ -1,7 +1,5 @@
 import numpy as np
-from sklearn.cluster import KMeans, AgglomerativeClustering
-from collections import defaultdict, Counter
-from scipy import stats
+from collections import Counter
 from .cluster import Cluster
 
 class Variant:
