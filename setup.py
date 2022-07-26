@@ -22,9 +22,9 @@ setup(
     install_requires = [
         'pysam>=0.14.0',
         'pybedtools>=0.9.0',
-        'numpy>=1.14.2',
+        'numpy>=1.22.3',
         'pathos>=0.2.3',
-        'scikit-learn>=0.19.0',
+        'scikit-learn>=1.1',
         'scipy>=1.8.0',
         ],
     scripts = ['straglr.py',
