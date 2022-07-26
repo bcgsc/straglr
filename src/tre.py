@@ -19,14 +19,14 @@ class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
                  max_num_clusters=3, min_cluster_size=2,
-                 genotype_in_size=False, debug=False):
+                 genotype_in_size=False, trf_args='2 5 5 80 10 10 500 -d -h', debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
         trf_path = spawn.find_executable("trf")
         if not trf_path:
             sys.exit('ABORT: {}'.format("can't find trf in PATH"))
             
-        self.trf_args = '2 5 5 80 10 10 500 -d -h'
+        self.trf_args = trf_args
         self.flank_len = 2000
 
         self.reads_fasta = reads_fasta
@@ -1067,7 +1067,6 @@ class TREFinder:
 
         if tre_events:
             merged_loci = self.merge_loci(tre_events)
-            self.make_trf_sensitive()
             variants = self.collect_alleles(merged_loci)
 
             # remove redundant variants
@@ -1097,9 +1096,6 @@ class TREFinder:
         for i in sorted(remove, reverse=True):
             del variants[i]
 
-    def make_trf_sensitive(self):
-        self.trf_args = '2 5 5 80 10 10 500 -d -h'
-
     def collect_alleles(self, loci):
         tre_variants = []
         if self.nprocs > 1:
@@ -1125,9 +1121,6 @@ class TREFinder:
                     self.min_str_len = 2
                     #if len(cols[3]) <= self.max_str_len:
                     loci.append((cols[0], int(cols[1]), int(cols[2]), cols[3]))
-
-        # use more senstitive trf params to capture smaller alleles
-        self.make_trf_sensitive()
 
         # use give loci coordinates for reporting
         self.update_loci = False
