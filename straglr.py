@@ -7,6 +7,7 @@ import sys
 import tempfile
 
 def parse_args():
+    trf_args_meta = ('Match', 'Mismatch', 'Delta', 'PM', 'PI', 'Minscore', 'MaxPeriod')
     parser = argparse.ArgumentParser()
     parser.add_argument("bam", type=str, help="bam file")
     parser.add_argument("genome_fasta", type=str, help="genome_fasta")
@@ -25,6 +26,7 @@ def parse_args():
     parser.add_argument("--min_str_len", type=int, help="minimum STR length. Default:2", default=2)
     parser.add_argument("--max_num_clusters", type=int, help="maximum number of clusters to try. Default:2", default=2)
     parser.add_argument("--max_cov", type=int, help="maximum allowed coverage for ins inspection. Default:100", default=100)
+    parser.add_argument("--trf_args", type=int, nargs=7, help="tandem repeat finder arguments. Default:2 5 5 80 10 10 500", metavar=trf_args_meta, default=[2,5,5,80,10,10,500])
     parser.add_argument("--tmpdir", type=str, help="directory to use for generating tmp files instead of system TEMP")
     parser.add_argument("--debug", action='store_true', help="debug mode i.e. keep trf output")
     parser.add_argument("--version", action='version', version=__version__)
@@ -49,6 +51,7 @@ def main():
                            min_cluster_size=min_cluster_size,
                            genotype_in_size=args.genotype_in_size,
                            max_num_clusters=args.max_num_clusters,
+                           trf_args=' '.join(map(str, args.trf_args + ['-d', '-h'])),
                            debug=args.debug)
 
     variants = []
