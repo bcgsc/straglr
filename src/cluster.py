@@ -23,7 +23,7 @@ class Cluster:
         if len(set(x)) == 1:
             return [x]
         for i in range(len(N)):
-            models[i] = GaussianMixture(N[i]).fit(X)
+            models[i] = GaussianMixture(N[i], init_params="k-means++").fit(X)
         AIC = [m.aic(X) for m in models]
         BIC = [m.bic(X) for m in models]
         M_best = models[np.argmin(AIC)]
