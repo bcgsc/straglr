@@ -24,3 +24,16 @@ v1.2.0
 - improve boundary definition of long(kb range) repeat loci in genome scan
 - added `--tmpdir` to allow user to specify TEMP location for generating tmp files
 - allowed `--min_cluster_size` to be bigger than `--min_suport` for genotyping mode only
+
+v1.3.0
+- `strand` column added to `.tsv` output to indicated strand of support read, `read_start` is recalculated based on read instead of alignment coordinate for negative strand sequences
+- `blastn` jobs deployed per locus for compareing target and detected motifs combined to one job per process
+- minimum coverarge, percent identity, and e-value added to `blastn` jobs when launched
+- when searching for repeat in insertion site, `target_flank` increased from 2000 to 3000
+- `bedtools` merge parameter `d` for merging detected insertion loci increased from 50 to 100
+- reads identified as `clipped` at repeat locus will not be examined again for same locus as if it is a full alignment
+- complete removal of temporary bed files unless `--debug` specified
+- `straglr_compare.py` added for comparing straglr results from test against control samples
+- `Python`3.8 now needed becasuse `Scipy`1.8 is needed for t-test in `straglr_compare.py`
+- new parameter `trf_args` to allow user specify his own preferred TRF settings
+- changed seeding method of Gaussian Mixture Model to "k-means++" to reduce CPU overhead
