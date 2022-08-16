@@ -37,3 +37,4 @@ v1.3.0
 - `Python`3.8 now needed becasuse `Scipy`1.8 is needed for t-test in `straglr_compare.py`
 - new parameter `trf_args` to allow user specify his own preferred TRF settings
 - changed seeding method of Gaussian Mixture Model to "k-means++" to reduce CPU overhead
+- `--working_directory` added to allow user specify working directory, otherwise current directory will be used
