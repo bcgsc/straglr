@@ -28,5 +28,6 @@ setup(
         'scipy>=1.8.0',
         ],
     scripts = ['straglr.py',
+               'straglr_compare.py',
                ],
 )
