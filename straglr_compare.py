@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import argparse
 from pybedtools import BedTool, create_interval_from_list
 from collections import defaultdict, Counter
