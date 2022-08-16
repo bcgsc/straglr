@@ -4,19 +4,29 @@ Straglr is a tool that can be used for genome-wide scans for tandem repeat(TR) e
 
 ## Installation
 Straglr is implemented in Python 3.8 and has been tested in Linux environment.
-Straglr can be installed via pip:
 
+Straglr depends on [Tandem Repeat Finder(TRF)](https://tandem.bu.edu/trf/trf.html) for identifying TRs and [blastn](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/) for iotif matching. (TRF and blastn executables must be in `$PATH`). Other Python dependencies are listed in `requirements.txt`.
+
+The file `environment.yaml` can by used by conda to create an environment with all dependencies installed:
 ```
-pip install git+https://github.com/bcgsc/straglr.git#egg=straglr
+conda env create --name straglr --file=environment.yaml
 ```
-Straglr depends on [Tandem Repeat Finder(TRF)](https://tandem.bu.edu/trf/trf.html) for identifying TRs and [blastn](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/) for motif matching. (TRF and blastn executables must be in `$PATH`)
+Straglr can be added to the environment via `pip`,
+```
+pip install git+https://github.com/bcgsc/straglr.git@v1.3.0#egg=straglr
+```
+(for example to install v1.3.0), or run directly from the cloned repository:
+```
+conda activate straglr
+./straglr.py
+```
 
 ## Input
 Long read alignments sorted by genomic coordindates in BAM format against the reference genome. Suggested aligner: [Minimap2](https://github.com/lh3/minimap2) **-- Please use the option `-Y` to enable soft-clipping so that read sequences can be assessed directly from the BAM file.** 
 
 ## Usage
 ```
-python straglr.py <mm2.bam> <reference_fasta> <output_prefix> [--loci loci.bed] [--exclude skip_regions.bed] [--chroms chr] [--regions regions.bed] [--min_support N] [--min_ins_size N] [--min_str_len N] [--max_str_len N] [--nprocs N] [--genotype_in_size] [--max_num_clusters N] [--min_cluster_size N] [--debug]
+python straglr.py <mm2.bam> <reference_fasta> <output_prefix> [--loci loci.bed] [--exclude skip_regions.bed] [--chroms chr] [--regions regions.bed] [--min_support N] [--min_ins_size N] [--min_str_len N] [--max_str_len N] [--nprocs N] [--genotype_in_size] [--max_num_clusters N] [--min_cluster_size N] [--working_dir] [--tmpdir] [--debug]
 ```
 
 Some common parameters:
@@ -44,6 +54,10 @@ Some common parameters:
 `--max_num_clusters`: maximum number of clusters to be tried in Gausssian Mixture Model (GMM) clustering (Default:2)
 
 `--min_cluster_size`: minimum number of reads required to constitute a cluster (allele) in GMM clustering (Default:2)
+
+`--working_dir`: working directory (Default: current directory)
+
+`--tmpdir`: user-specified directory for holding temporary files
 
 #### Example application: genome scan to detect TRs longer than the reference genome by 100bp:
 The most common use of Straglr is for detecting TR expansions over the reference genome by a defined size threshold. This will save computations spent on genotyping the majority of TRs in the human genome with no substantial change in lengths. The identified expanded alleles can then be screened for pathogenicity by comparing against known TR polymorphisms. A sample Straglr run to detect expansions larger than the reference alleles by 100 bp on TR loci 2-100bp in motif length:
