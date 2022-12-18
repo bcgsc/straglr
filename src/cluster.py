@@ -46,7 +46,7 @@ class Cluster:
 
         return [c for c in merged_clusters if len(c) >= self.min_pts]
 
-    def merge_gmm_clusters(self, clusters, threshold=50, rel_threshold=0.05):
+    def merge_gmm_clusters(self, clusters, threshold=50, rel_threshold=0.1):
         if len(clusters) <= 1:
             return clusters
 
