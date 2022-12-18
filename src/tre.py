@@ -309,14 +309,21 @@ class TREFinder:
         if not pattern_matched and filtered_patterns['i']:
             # if target patterns don't match, but there is, just use longest one
             if filtered_results['t']:
-                tpats = [r for r in filtered_results['t'] if int(r[0]) < target_flank and int(r[1]) > target_flank]
+                tpats = [r for r in filtered_results['t'] if int(r[0]) <= target_flank and int(r[1]) >= target_flank]
                 if tpats:
                     tpats_sorted = sorted(tpats, key=lambda p:len(p[-1]), reverse=True)
                     pgstart, pgend = gstart + tpats_sorted[0][0] - 1, gstart + tpats_sorted[0][1] - 1
+
+            candidates = sorted([r for r in filtered_results['i'] if r[13] in filtered_patterns['i']], key=lambda r:len(r[-1]), reverse=True)
+            pattern_matched = candidates[0][13]
+
+            if filtered_results['t']:
+                pattern_matched += ',{}'.format(','.join(filtered_patterns['t']))
+
             if not pgstart and not pgend:
                 # just take the pattern with the longest repeat
-                candidates = sorted([r for r in filtered_results['i'] if r[13] in filtered_patterns['i']], key=lambda r:len(r[-1]), reverse=True)
-                pattern_matched = candidates[0][13]
+                #candidates = sorted([r for r in filtered_results['i'] if r[13] in filtered_patterns['i']], key=lambda r:len(r[-1]), reverse=True)
+                #pattern_matched = candidates[0][13]
                 # deduce the insertion pos from gstart and gend, and use it as the repeat insertion point
                 mid = float(gstart + gend) / 2
                 pgstart, pgend = int(math.floor(mid)), int(math.ceil(mid))
@@ -854,7 +861,7 @@ class TREFinder:
         repeat_seqs = {}
         generic = set()
         patterns = {}
-        single_neighbour_size = 100
+        single_neighbour_size = 50
         split_neighbour_size = 500
         min_mapped = 0.5
         all_clipped = {}
@@ -880,14 +887,23 @@ class TREFinder:
                     check_end = None
                     start_olap = False
                     end_olap = False
+                    start_olap_size = 1000000
+                    end_olap_size = 1000000
                     if aln.reference_start >= locus[1] - split_neighbour_size and aln.reference_start <= locus[2] + split_neighbour_size:
                         start_olap = True
+                        start_olap_size = abs(aln.reference_start - (locus[1] + locus[2])/2)
                     if aln.reference_end >= locus[1] - split_neighbour_size and aln.reference_end <= locus[2] + split_neighbour_size:
                         end_olap = True
+                        end_olap_size = abs(aln.reference_end - (locus[1] + locus[2])/2)
                     if start_olap and not end_olap:
                         check_end = 'start'
                     elif end_olap and not start_olap:
                         check_end = 'end'
+                    elif start_olap and end_olap:
+                        if start_olap_size < end_olap_size:
+                            check_end = 'start'
+                        elif start_olap_size > end_olap_size:
+                            check_end = 'end'
                     clipped_end = None
                     if check_end is not None:
                         clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end, use_sa=True)
@@ -972,7 +988,14 @@ class TREFinder:
                     # don't consider alignment if it's deemed split at locus
                     if aln.query_name in clipped:
                         continue
-                    seq, tstart, tend, qstart = self.extract_subseq(aln, locus[1] - self.trf_flank_size, locus[2] + self.trf_flank_size, reads_fasta=reads_fasta)
+
+                    gstart = locus[1] - self.trf_flank_size
+                    if gstart <= aln.reference_start:
+                        gstart = aln.reference_start - 1
+                    gend = locus[2] + self.trf_flank_size
+                    if gend >= aln.reference_end:
+                        gend = aln.reference_end - 1
+                    seq, tstart, tend, qstart = self.extract_subseq(aln, gstart, gend, reads_fasta=reads_fasta)
                     if seq is None:
                         if self.debug:
                             print('problem getting seq1 {} {} {} {} {}'.format(aln.query_name, locus, tstart, tend, qstart))
