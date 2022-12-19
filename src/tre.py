@@ -747,7 +747,7 @@ class TREFinder:
             for read in alleles[locus]:
                 variant[3].append([read,
                                    alleles[locus][read][0], # rstart
-                                   None, # repeat
+                                   ','.join(list(alleles[locus][read][1])), # repeat
                                    None, # copy number
                                    alleles[locus][read][2], # size
                                    alleles[locus][read][3], # genome_start
@@ -768,7 +768,7 @@ class TREFinder:
                     break
             variant[4] = (sorted(top_pats, key=len)[0])
             for allele in variant[3]:
-                allele[2] = variant[4]
+                #allele[2] = variant[4]
                 allele[3] = round(float(allele[4]) / len(variant[4]), 1)
 
             variants.append(variant)

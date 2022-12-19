@@ -145,6 +145,7 @@ class Allele:
     9: genotype
     """
     tsv_headers = ['read',
+                   'repeat_read',
                    'copy_number',
                    'size',
                    'read_start',
@@ -162,6 +163,7 @@ class Allele:
     def to_tsv(cls, cols):
         # __init__ input order to output order
         cols_ordered = [cols[0],
+                        cols[2],
                         cols[3],
                         cols[4],
                         cols[1],
