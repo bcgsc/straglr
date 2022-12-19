@@ -634,9 +634,12 @@ class TREFinder:
                     if combined_coords[0][0] >= (bounds[0] + too_far_from_read_end) or combined_coords[0][1] <= (bounds[1] - too_far_from_read_end):
                         if self.debug:
                             print('too_far_from_read_end', locus, read, combined_coords[0][0], combined_coords[0][1], seq_len, too_far_from_read_end)
+                            label = 'failed'
 
                     if check_seq_len == 0 or (span / check_seq_len) < min_span:
-                        continue
+                        if self.debug:
+                            print('span_not_big_enough', locus, read, span, check_seq_len, min_span)
+                            label = 'failed'
 
                     coords = combined_coords[0]
                     repeat_seq = repeat_seqs[seq][coords[0]-1:coords[-1]]
@@ -664,20 +667,17 @@ class TREFinder:
                                 genome_end = int(locus[2])
                                 size -= diff
 
-                    #print('ff {} {} {} {} {} {} {} {} {} {} {} {}'.format(read, locus, strands[read], size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end, read_len))
+                    if label == 'full' and self.debug:
+                        print('passed {} {} {} {} {} {} {} {} {} {} {} {}'.format(read, locus, strands[read], size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end, read_len))
                     if not read in alleles[locus]:
-                        passed = False
-                        if label != 'partial':
-                            passed = True
-                        else:
+                        if label == 'partial':
                             # screen "partial" (singly clipped alignments), repeat occupies most of clipped sequence
                             query_len = int(cols[-3])
-                            if size / (query_len - flank) >= 0.9:
-                                passed = True
-
-                        if not passed:
-                            continue
-
+                            if not (size / (query_len - flank) >= 0.9):
+                                label = 'failed'
+                                if debug:
+                                    print('partial_and_not_enough_span', read, size, query_len, flank, size / (query_len - flank))
+                        
                         if strands[read] == '-':
                             rpos = read_len - rpos - size + 1
 
@@ -1213,6 +1213,7 @@ class TREFinder:
         return self.collect_alleles(loci)
     
     def output_tsv(self, variants, out_file, cmd=None):
+        read_status = [('full', 'partial'), 'failed']
         with open(out_file, 'w') as out:
             if cmd is not None:
                 out.write('#{} {}\n'.format(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), cmd))
@@ -1221,10 +1222,12 @@ class TREFinder:
                 if not variant[5]:
                     continue
                 variant_cols = Variant.to_tsv(variant)
-                for allele in sorted(variant[3], key=itemgetter(3), reverse=True):
-                    allele_cols = Allele.to_tsv(allele)
-                    out.write('{}\n'.format('\t'.join(variant_cols + allele_cols)))
-
+                for status in read_status:
+                    alleles = [a for a in variant[3] if a[-2] in status]
+                    for allele in sorted(alleles, key=itemgetter(3), reverse=True):
+                        allele_cols = Allele.to_tsv(allele)
+                        out.write('{}\n'.format('\t'.join(variant_cols + allele_cols)))
+    
     def output_bed(self, variants, out_file):
         headers = Variant.bed_headers
         for i in range(self.max_num_clusters):

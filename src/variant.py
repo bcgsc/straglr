@@ -57,8 +57,8 @@ class Variant:
             # '-' assigned if read is an outlier in clustering or 'partial'
             if not assigned:
                 gt = '-'
-                if allele[-1] == 'partial':
-                    gt = '- ({})'.format(allele[-1])
+                if allele[-1] != 'full':
+                    gt += ' ({})'.format(allele[-1])
                 allele.append(gt)
 
     @classmethod
