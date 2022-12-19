@@ -360,7 +360,7 @@ class TREFinder:
 
         return merged
 
-    def extract_aln_tuple(self, aln, tcoord, search_direction, max_extend=200):
+    def extract_aln_tuple_old(self, aln, tcoord, search_direction, max_extend=200):
         found = []
         tpos = tcoord
         if search_direction == 'left':
@@ -371,6 +371,29 @@ class TREFinder:
             while not found and tpos <= tcoord + max_extend:
                 found = [p for p in aln.aligned_pairs if p[1] == tpos and p[0] is not None]
                 tpos += 1
+
+        if found:
+            return found[0]
+        else:
+            return found
+
+    def extract_aln_tuple(self, aln, coord, search_direction, max_extend=200, search_query=False):
+        found = []
+        pos = coord
+        if search_direction == 'left':
+            while not found and pos >= coord - max_extend:
+                if not search_query:
+                    found = [p for p in aln.aligned_pairs if p[1] == pos and p[0] is not None]
+                else:
+                    found = [p for p in aln.aligned_pairs if p[0] == pos and p[1] is not None]
+                pos -= 1
+        else:
+            while not found and pos <= coord + max_extend:
+                if not search_query:
+                    found = [p for p in aln.aligned_pairs if p[1] == pos and p[0] is not None]
+                else:
+                    found = [p for p in aln.aligned_pairs if p[0] == pos and p[1] is not None]
+                pos += 1
 
         if found:
             return found[0]
@@ -406,9 +429,10 @@ class TREFinder:
 
         return seq, tstart, tend, qstart
 
-    def create_trf_fasta(self, locus, read, tstart, tend, qstart, seq, read_len):
+    def create_trf_fasta(self, locus, read, tstart, tend, qstart, seq, read_len, partial=False):
         """ for genotyping """
-        fields = list(locus) + [read, tstart, tend, len(seq), qstart, read_len]
+        label = 'full' if not partial else 'partial'
+        fields = list(locus) + [read, tstart, tend, len(seq), qstart, read_len, label]
         header = '{}'.format(':'.join(map(str, fields)))
 
         return header, '>{}\n{}\n'.format(header, seq)
@@ -489,6 +513,8 @@ class TREFinder:
                         target_file,
                         '-task blastn -word_size {} -evalue 1e-10 -outfmt 6 -out'.format(word_size),
                         blastn_out])
+        if self.debug:
+            print(cmd)
         # redirect stdout and stderr to devnull
         FNULL = open(os.devnull, 'w')
         returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
@@ -561,7 +587,11 @@ class TREFinder:
         alleles = defaultdict(dict)
 
         for seq in results.keys():
-            cols = seq.split(':')
+            cols = seq.split(':')[:-1]
+            label = seq.split(':')[-1]
+            #if label == 'partial':
+            #    continue
+
             if len(cols) < 7:
                 if self.debug:
                     print('problematic seq id: {}'.format(seq))
@@ -636,13 +666,25 @@ class TREFinder:
 
                     #print('ff {} {} {} {} {} {} {} {} {} {} {} {}'.format(read, locus, strands[read], size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end, read_len))
                     if not read in alleles[locus]:
+                        passed = False
+                        if label != 'partial':
+                            passed = True
+                        else:
+                            # screen "partial" (singly clipped alignments), repeat occupies most of clipped sequence
+                            query_len = int(cols[-3])
+                            if size / (query_len - flank) >= 0.9:
+                                passed = True
+
+                        if not passed:
+                            continue
+
                         if strands[read] == '-':
                             rpos = read_len - rpos - size + 1
 
                         if genome_start < genome_end:
-                            alleles[tuple(locus)][read] = (rpos, pats, size, genome_start, genome_end, strands[read])
+                            alleles[tuple(locus)][read] = (rpos, pats, size, genome_start, genome_end, strands[read], label)
                         else:
-                            alleles[tuple(locus)][read] = (rpos, pats, size, int(gstart), int(gend), strands[read])
+                            alleles[tuple(locus)][read] = (rpos, pats, size, int(gstart), int(gend), strands[read], label)
 
         return self.alleles_to_variants(alleles)
 
@@ -711,6 +753,7 @@ class TREFinder:
                                    alleles[locus][read][3], # genome_start
                                    alleles[locus][read][4], # genome_end
                                    alleles[locus][read][5], # strand
+                                   alleles[locus][read][6], # label
                                    ])
 
                 # update pattern counts
@@ -743,14 +786,15 @@ class TREFinder:
         if clipped_size is not None:
             if clipped_end == 'start':
                 qstart, qend = 0, aln.query_alignment_start + self.trf_flank_size
-                tup = self.extract_aln_tuple(aln, min(aln.reference_start, gpos[0]) - self.trf_flank_size, 'left')
+                tup = self.extract_aln_tuple(aln, qend, 'right', search_query=True)
                 if tup:
                     qstart, qend = 0, tup[0]
                     tpos = tup[1]
-                return None
+                else:
+                    return None
             else:
                 qstart, qend = aln.query_alignment_end - self.trf_flank_size, aln.infer_read_length()
-                tup = self.extract_aln_tuple(aln, max(aln.reference_end, gpos[1]) + self.trf_flank_size, 'right')
+                tup = self.extract_aln_tuple(aln, qstart, 'left', search_query=True)
                 if tup:
                     qstart, qend = tup[0], aln.infer_read_length()
                     tpos = tup[1]
@@ -1013,7 +1057,9 @@ class TREFinder:
 
         if missed_clipped:
             rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
+            rescued_reads = set()
             for read, clipped_end, qstart, qend, tstart, tend, seq, locus in rescued:
+                rescued_reads.add(read)
                 clipped = all_clipped[locus]
                 aln = clipped[read][list(clipped[read].keys())[0]][0]
                 # skip split alignment if start or end too close to repeat (with 50bp)
@@ -1028,6 +1074,20 @@ class TREFinder:
                 else:
                     generic.add(header) 
 
+            # unpaired clipped reads not rescued
+            for locus, clipped_end, read, qstart, qend, tpos, seq in missed_clipped:
+                if read in rescued_reads:
+                    continue
+                aln = clipped[read][list(clipped[read].keys())[0]][0]
+                (tstart, tend) = (locus[1], tpos) if clipped_end == 'start' else (tpos, locus[2])
+                header, fa_entry = self.create_trf_fasta(locus[:3], read, tstart, tend, qstart, seq, aln.infer_read_length(), partial=True)
+                patterns[header] = locus[-1]
+                repeat_seqs[header] = seq
+
+                if not '*' in locus[-1]:
+                    trf_input += fa_entry
+                else:
+                    generic.add(header)
 
         variants = []
         if trf_input:

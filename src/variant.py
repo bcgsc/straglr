@@ -34,7 +34,7 @@ class Variant:
     @classmethod
     def genotype(cls, variant, report_in_size=False):
         # cluster - always use sizes
-        sizes = sorted([a[4] for a in variant[3]])
+        sizes = sorted([a[4] for a in variant[3] if a[-1] == 'full'])
         clusters = cls.clustering.cluster(sizes)
 
         # genotype labels: mean of either copy numbers(default) or size
@@ -42,7 +42,7 @@ class Variant:
             if report_in_size:
                 alleles = cluster
             else:
-                alleles = [allele[3] for allele in variant[3] if allele[4] in cluster]
+                alleles = [allele[3] for allele in variant[3] if allele[4] in cluster and allele[-2] == 'full']
             variant[5].append(round(np.mean(alleles), 1))
 
         # assign genotype to each allele
@@ -54,9 +54,12 @@ class Variant:
                     assigned = True
                     break
 
-            # '-' assigned if read is an outlier in clustering
+            # '-' assigned if read is an outlier in clustering or 'partial'
             if not assigned:
-                allele.append('-')
+                gt = '-'
+                if allele[-1] == 'partial':
+                    gt = '- ({})'.format(allele[-1])
+                allele.append(gt)
 
     @classmethod
     def get_genotype(cls, variant):
@@ -64,7 +67,7 @@ class Variant:
         gt = []
         for allele in sorted([a for a in allele_counts.keys() if type(a) is not str], reverse=True) +\
                              [a for a in allele_counts.keys() if type(a) is str]:
-            if allele == '-' and len(allele_counts.keys()) > 1:
+            if type(allele) is str and len(allele_counts.keys()) > 1:
                 continue
             gt.append((allele, allele_counts[allele]))
 
@@ -96,7 +99,7 @@ class Variant:
         if variant[5]:
             n = 0
             for allele in sorted(variant[5], reverse=True):
-                reads = [a for a in variant[3] if a[8] == allele and a[4] - ref_size >= min_expansion]
+                reads = [a for a in variant[3] if a[9] == allele and a[4] - ref_size >= min_expansion]
                 n += len(reads)
 
             if n >= min_reads:
@@ -138,7 +141,8 @@ class Allele:
     5: genome_start
     6: genome_end
     7: strand
-    8: genotype
+    8: label
+    9: genotype
     """
     tsv_headers = ['read',
                    'copy_number',
@@ -162,6 +166,6 @@ class Allele:
                         cols[4],
                         cols[1],
                         cols[7],
-                        cols[8],
+                        cols[9],
                         ]
         return list(map(str, cols_ordered))
