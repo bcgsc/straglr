@@ -675,7 +675,7 @@ class TREFinder:
                             query_len = int(cols[-3])
                             if not (size / (query_len - flank) >= 0.9):
                                 label = 'failed'
-                                if debug:
+                                if self.debug:
                                     print('partial_and_not_enough_span', read, size, query_len, flank, size / (query_len - flank))
                         
                         if strands[read] == '-':
@@ -1076,7 +1076,7 @@ class TREFinder:
 
             # unpaired clipped reads not rescued
             for locus, clipped_end, read, qstart, qend, tpos, seq in missed_clipped:
-                if read in rescued_reads:
+                if read in rescued_reads or not read in clipped:
                     continue
                 aln = clipped[read][list(clipped[read].keys())[0]][0]
                 (tstart, tend) = (locus[1], tpos) if clipped_end == 'start' else (tpos, locus[2])
