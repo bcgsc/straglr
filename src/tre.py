@@ -63,15 +63,20 @@ class TREFinder:
     def construct_trf_output(self, input_fasta):
         m = re.search('(\d[\d\s]*\d)', self.trf_args)
         if m is not None:
-            return '{}/{}.{}.dat'.format(os.getcwd(), os.path.basename(input_fasta), m.group(1).replace(' ', '.'))
+            return '{}/{}.{}.dat'.format(os.path.dirname(input_fasta), os.path.basename(input_fasta), m.group(1).replace(' ', '.'))
+            #return '{}/{}.{}.dat'.format(os.getcwd(), os.path.basename(input_fasta), m.group(1).replace(' ', '.'))
     
     def run_trf(self, input_fasta):
+        cwd = os.getcwd()
+        output_dir = os.path.dirname(input_fasta)
+        os.chdir(output_dir)
         cmd = ' '.join(['trf', input_fasta, self.trf_args])
         # redirect stdout and stderr to devnull
         FNULL = open(os.devnull, 'w')
         returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
         
         output = self.construct_trf_output(input_fasta)
+        os.chdir(cwd)
         if os.path.exists(output):
             return output
         else:
@@ -349,7 +354,9 @@ class TREFinder:
         tres_bed = BedTool(bed_line, from_string=True)
         tres_merged = tres_bed.sort().merge(d=d, c='4,2', o='distinct,count')
         if self.debug:
-            tres_merged.saveas('tres_loci.bed')
+            tres_merged_file = create_tmp_file('')
+            tres_merged.saveas(tres_merged_file)
+            print('tres_loci merged {}'.format(tres_merged_file))
     
         merged = []
         for tre in tres_merged:
@@ -493,7 +500,7 @@ class TREFinder:
             if hits:
                 for query in hits:
                     for locus in queries.keys():
-                        if query in queries[locus]:
+                        if query in queries[locus] and hits[query] in targets[locus]:
                             same_pats[locus][query] = hits[query]
         
         return same_pats
@@ -552,7 +559,8 @@ class TREFinder:
                             target_file,
                             '-task blastn -word_size {} -outfmt 6 -perc_identity 80 -qcov_hsp_perc 80 -out'.format(word_size),
                             blastn_out])
-            #print(cmd)
+            if self.debug:
+                print(cmd)
             # redirect stdout and stderr to devnull
             FNULL = open(os.devnull, 'w')
             returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
@@ -589,8 +597,6 @@ class TREFinder:
         for seq in results.keys():
             cols = seq.split(':')[:-1]
             label = seq.split(':')[-1]
-            #if label == 'partial':
-            #    continue
 
             if len(cols) < 7:
                 if self.debug:
@@ -910,6 +916,7 @@ class TREFinder:
         min_mapped = 0.5
         all_clipped = {}
         missed_clipped = []
+        skipped_reads = defaultdict(dict)
 
         if self.strict:
             self.trf_flank_size = 80
@@ -1032,7 +1039,7 @@ class TREFinder:
                     # don't consider alignment if it's deemed split at locus
                     if aln.query_name in clipped:
                         continue
-
+                    
                     gstart = locus[1] - self.trf_flank_size
                     if gstart <= aln.reference_start:
                         gstart = aln.reference_start - 1
@@ -1054,12 +1061,19 @@ class TREFinder:
                         trf_input += fa_entry
                     else:
                         generic.add(header)
+                else:
+                    if (aln.reference_start >= locus[1] and aln.reference_start <= locus[2]) or (aln.reference_end >= locus[1] and aln.reference_end <= locus[2]):
+                        skipped_reads[(locus[0], str(locus[1]), str(locus[2]))][aln.query_name] = 'not_spanning'
+                        if self.debug:
+                            print('not_spanning', locus, aln.query_name, aln.reference_start, aln.reference_end)
 
         if missed_clipped:
             rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
-            rescued_reads = set()
+            rescued_reads = defaultdict(set)
+            #rescued_reads = set()
             for read, clipped_end, qstart, qend, tstart, tend, seq, locus in rescued:
-                rescued_reads.add(read)
+                #rescued_reads.add(read)
+                rescued_reads[locus].add(read)
                 clipped = all_clipped[locus]
                 aln = clipped[read][list(clipped[read].keys())[0]][0]
                 # skip split alignment if start or end too close to repeat (with 50bp)
@@ -1076,7 +1090,8 @@ class TREFinder:
 
             # unpaired clipped reads not rescued
             for locus, clipped_end, read, qstart, qend, tpos, seq in missed_clipped:
-                if read in rescued_reads or not read in clipped:
+                clipped = all_clipped[locus]
+                if (locus in rescued_reads and read in rescued_reads[locus]) or not read in clipped:
                     continue
                 aln = clipped[read][list(clipped[read].keys())[0]][0]
                 (tstart, tend) = (locus[1], tpos) if clipped_end == 'start' else (tpos, locus[2])
@@ -1094,7 +1109,8 @@ class TREFinder:
             variants.extend(self.extract_alleles_trf(trf_input,
                                                      repeat_seqs,
                                                      self.trf_flank_size,
-                                                     clipped,
+                                                     #clipped,
+                                                     None,
                                                      bam,
                                                      strands,
                                                      patterns,
@@ -1114,6 +1130,7 @@ class TREFinder:
         Variant.set_genotype_config(min_reads=self.min_cluster_size, max_num_clusters=self.max_num_clusters)
 
         for variant in variants:
+            self.add_reads(variant, skipped_reads)
             # genotype
             Variant.genotype(variant, report_in_size=self.genotype_in_size)
             Variant.summarize_genotype(variant)
@@ -1122,6 +1139,15 @@ class TREFinder:
             self.cleanup()
 
         return variants
+
+    def add_reads(self, variant, skipped_reads):
+        locus = tuple(variant[:3])
+        if locus in skipped_reads:
+            used_reads = [a[0] for a in variant[3]]
+            for read, label in skipped_reads[locus].items():
+                if not read in used_reads:
+                    allele = [read] + ['NA'] * 7 + [label]
+                    variant[3].append(allele)
 
     def examine_ins(self, ins_list, min_expansion=0):
         def filter_tres(ins_list, tre_events):
@@ -1213,7 +1239,7 @@ class TREFinder:
         return self.collect_alleles(loci)
     
     def output_tsv(self, variants, out_file, cmd=None):
-        read_status = [('full', 'partial'), 'failed']
+        read_status = [('full', 'partial'), 'failed', 'not_spanning']
         with open(out_file, 'w') as out:
             if cmd is not None:
                 out.write('#{} {}\n'.format(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), cmd))
