@@ -28,7 +28,6 @@ def parse_args():
     parser.add_argument("--max_num_clusters", type=int, help="maximum number of clusters to try. Default:2", default=2)
     parser.add_argument("--max_cov", type=int, help="maximum allowed coverage for ins inspection. Default:100", default=100)
     parser.add_argument("--trf_args", type=int, nargs=7, help="tandem repeat finder arguments. Default:2 5 5 80 10 10 500", metavar=trf_args_meta, default=[2,5,5,80,10,10,500])
-    parser.add_argument("--working_dir", type=str, help="working directory. Default:current directory")
     parser.add_argument("--tmpdir", type=str, help="directory to use for generating tmp files instead of system TEMP")
     parser.add_argument("--debug", action='store_true', help="debug mode i.e. keep trf output")
     parser.add_argument("--version", action='version', version=__version__)
@@ -40,13 +39,6 @@ def main():
 
     if args.tmpdir:
         tempfile.tempdir = args.tmpdir
-
-    if args.working_dir:
-        if not os.path.exists(args.working_dir):
-            os.makedirs(args.working_dir)
-        elif not os.path.isdir(args.working_dir):
-            sys.exit('Error: working directory given "{}" is not a directory'.format(args.working_dir))
-        os.chdir(args.working_dir)
 
     min_cluster_size = args.min_cluster_size if args.min_cluster_size < args.min_support else args.min_support
 
