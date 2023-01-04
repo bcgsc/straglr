@@ -421,7 +421,9 @@ class INSFinder:
         ins_all = BedTool(ins_bed_file)
         ins_merged = ins_all.sort().merge(d=d, c='4,5', o='distinct,count_distinct')
         if self.debug:
-            ins_merged.saveas('ins_merged.bed')
+            ins_merged_file = create_tmp_file('')
+            ins_merged.saveas(ins_merged_file)
+            print('ins merged {}'.format(ins_merged_file))
 
         eids_merged = set()
         for c in ins_merged:
