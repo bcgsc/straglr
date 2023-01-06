@@ -94,6 +94,7 @@ class TREFinder:
 
             start and end index are 1-based
         """
+        motif_out_of_range = set()
         self.tmp_files.add(trf_output)
         results = defaultdict(list)
         with open(trf_output, 'r') as ff:
@@ -106,8 +107,10 @@ class TREFinder:
                 elif len(cols) == 15:
                     if len(cols[13]) >= self.min_str_len and len(cols[13]) <= self.max_str_len:
                         results[seq].append(self.type_trf_cols(cols))
+                    else:
+                        motif_out_of_range.add(seq)
 
-        return results
+        return results, motif_out_of_range - set(results.keys())
 
     def extract_tres(self, ins_list, target_flank=3000):
         genome_fasta = pysam.Fastafile(self.genome_fasta)
@@ -124,7 +127,7 @@ class TREFinder:
                                                                                     genome_fasta))
             trf_input += '>{}.i\n{}\n'.format(prefix, ins[5])
 
-        results = self.perform_trf(trf_input)
+        results, motif_out_of_range = self.perform_trf(trf_input)
 
         grouped_results = {}
         for seq in results.keys():
@@ -467,8 +470,8 @@ class TREFinder:
             print('trf input {}'.format(trf_fasta))
         self.tmp_files.add(trf_fasta)
         output = self.run_trf(trf_fasta)
-        results = self.parse_trf(output)
-        return results
+        results, motif_out_of_range = self.parse_trf(output)
+        return results, motif_out_of_range
 
     def find_similar_long_patterns_gt(self, results, patterns, min_len=15, word_size=4):
         same_pats = {}
@@ -588,11 +591,26 @@ class TREFinder:
         return matches
 
     def extract_alleles_trf(self, trf_input, repeat_seqs, flank, clipped, bam, strands, patterns, reads_fasta, too_far_from_read_end=200):
-        results = self.perform_trf(trf_input)
+        results, motif_out_of_range = self.perform_trf(trf_input)
         same_pats = self.find_similar_long_patterns_gt(results, patterns)
 
         # group by locus
         alleles = defaultdict(dict)
+
+        for seq in motif_out_of_range:
+            cols = seq.split(':')[:-1]
+            label = seq.split(':')[-1]
+
+            if len(cols) < 7:
+                if self.debug:
+                    print('problematic seq id: {}'.format(seq))
+                continue
+            locus = tuple(cols[:3])
+            read = ':'.join(cols[3:-5])
+            rstart = int(cols[-2])
+            if self.debug:
+                print('motif_out_of_range', locus, read, rstart)
+            alleles[tuple(locus)][read] = (rstart, ['NA'], 'NA', 'NA', 'NA', strands[read], 'failed (motif_size_out_of_range)')
 
         for seq in results.keys():
             cols = seq.split(':')[:-1]
@@ -639,13 +657,13 @@ class TREFinder:
         
                     if combined_coords[0][0] >= (bounds[0] + too_far_from_read_end) or combined_coords[0][1] <= (bounds[1] - too_far_from_read_end):
                         if self.debug:
-                            print('too_far_from_read_end', locus, read, combined_coords[0][0], combined_coords[0][1], seq_len, too_far_from_read_end)
-                            label = 'failed'
+                            print('too_far_from_flank', locus, read, combined_coords[0][0], combined_coords[0][1], seq_len, too_far_from_read_end)
+                            label = 'failed (too_far_from_flank)'
 
                     if check_seq_len == 0 or (span / check_seq_len) < min_span:
                         if self.debug:
-                            print('span_not_big_enough', locus, read, span, check_seq_len, min_span)
-                            label = 'failed'
+                            print('insufficient_repeat_coverage', locus, read, span, check_seq_len, min_span)
+                            label = 'failed (insufficient_repeat_coverage)'
 
                     coords = combined_coords[0]
                     repeat_seq = repeat_seqs[seq][coords[0]-1:coords[-1]]
@@ -680,9 +698,9 @@ class TREFinder:
                             # screen "partial" (singly clipped alignments), repeat occupies most of clipped sequence
                             query_len = int(cols[-3])
                             if not (size / (query_len - flank) >= 0.9):
-                                label = 'failed'
+                                label = 'failed (partial_and_insufficient_span)'
                                 if self.debug:
-                                    print('partial_and_not_enough_span', read, size, query_len, flank, size / (query_len - flank))
+                                    print('partial_and_insufficient_span', read, size, query_len, flank, size / (query_len - flank))
                         
                         if strands[read] == '-':
                             rpos = read_len - rpos - size + 1
@@ -692,6 +710,12 @@ class TREFinder:
                         else:
                             alleles[tuple(locus)][read] = (rpos, pats, size, int(gstart), int(gend), strands[read], label)
 
+            else:
+                if self.debug:
+                    print('unmatched_motif', locus, read)
+                pats = set([r[13] for r in results[seq]])
+                alleles[tuple(locus)][read] = (rstart, pats, 'NA', 'NA', 'NA', strands[read], 'failed (unmatched_motif)')
+        
         return self.alleles_to_variants(alleles)
 
     def get_read_seqs(self, headers, bam):
@@ -763,8 +787,13 @@ class TREFinder:
                                    ])
 
                 # update pattern counts
-                pat_counts.update(alleles[locus][read][1])
+                if alleles[locus][read][-1] == 'full':
+                    pat_counts.update(alleles[locus][read][1])
 
+            if not pat_counts:
+                if self.debug:
+                    print('all_reads_failed', '{}:{}-{}'.format(locus[0], locus[1], locus[2]))
+                continue
             pat_counts_sorted = pat_counts.most_common()
             top_pats = [pat_counts_sorted[0][0]]
             for i in range(1, len(pat_counts_sorted)):
@@ -775,6 +804,9 @@ class TREFinder:
             variant[4] = (sorted(top_pats, key=len)[0])
             for allele in variant[3]:
                 #allele[2] = variant[4]
+                if allele[-1] != 'full':
+                    allele[3] = 'NA'
+                    continue
                 allele[3] = round(float(allele[4]) / len(variant[4]), 1)
 
             variants.append(variant)
@@ -924,10 +956,12 @@ class TREFinder:
         for locus in loci:
             clipped = defaultdict(dict)
             alns = []
+            all_reads = set()
             for aln in bam.fetch(locus[0], locus[1] - split_neighbour_size, locus[2] + split_neighbour_size):
                 if not reads_fasta and not aln.query_sequence:
                     continue
                 alns.append(aln)
+                all_reads.add(aln.query_name)
                 strands[aln.query_name] = '-' if aln.is_reverse else '+'
                 locus_size = locus[2] - locus[1] + 1
 
@@ -1063,7 +1097,7 @@ class TREFinder:
                         generic.add(header)
                 else:
                     if (aln.reference_start >= locus[1] and aln.reference_start <= locus[2]) or (aln.reference_end >= locus[1] and aln.reference_end <= locus[2]):
-                        skipped_reads[(locus[0], str(locus[1]), str(locus[2]))][aln.query_name] = 'not_spanning'
+                        skipped_reads[(locus[0], str(locus[1]), str(locus[2]))][aln.query_name] = 'skipped (not_spanning)'
                         if self.debug:
                             print('not_spanning', locus, aln.query_name, aln.reference_start, aln.reference_end)
 
@@ -1239,7 +1273,7 @@ class TREFinder:
         return self.collect_alleles(loci)
     
     def output_tsv(self, variants, out_file, cmd=None):
-        read_status = [('full', 'partial'), 'failed', 'not_spanning']
+        read_status = [('full', 'partial'), 'failed', 'skipped']
         with open(out_file, 'w') as out:
             if cmd is not None:
                 out.write('#{} {}\n'.format(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), cmd))
@@ -1249,11 +1283,24 @@ class TREFinder:
                     continue
                 variant_cols = Variant.to_tsv(variant)
                 for status in read_status:
-                    alleles = [a for a in variant[3] if a[-2] in status]
-                    for allele in sorted(alleles, key=itemgetter(3), reverse=True):
+                    alleles_with_size = []
+                    alleles_without_size = []
+                    # full/partial: should have size
+                    if type(status) is tuple:
+                        for s in status:
+                            alleles_with_size.extend([a for a in variant[3] if s in a[-2] and a[4] is not str])
+                            alleles_without_size.extend([a for a in variant[3] if s in a[-2] and a[4] is str])
+                    # faild/skipped: may or may not have size
+                    else:
+                        alleles_with_size.extend([a for a in variant[3] if status in a[-2] and type(a[4]) is not str])
+                        alleles_without_size.extend([a for a in variant[3] if status in a[-2] and type(a[4]) is str])
+                    for allele in sorted(alleles_with_size, key=itemgetter(4), reverse=True):
                         allele_cols = Allele.to_tsv(allele)
                         out.write('{}\n'.format('\t'.join(variant_cols + allele_cols)))
-    
+                    for allele in sorted(alleles_without_size, key=itemgetter(8,0), reverse=True):
+                        allele_cols = Allele.to_tsv(allele)
+                        out.write('{}\n'.format('\t'.join(variant_cols + allele_cols)))
+
     def output_bed(self, variants, out_file):
         headers = Variant.bed_headers
         for i in range(self.max_num_clusters):
