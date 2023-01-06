@@ -9,13 +9,15 @@ class Variant:
     2: end
     3: alleles
     4: repeat
-    5: genotypes
-    6: genotype_summary
+    5: coverage
+    6: genotypes
+    7: genotype_summary
     """
     tsv_headers = ['chrom',
                    'start',
                    'end',
                    'target_repeat',
+                   'coverage',
                    'genotype',
                    ]
 
@@ -43,14 +45,14 @@ class Variant:
                 alleles = cluster
             else:
                 alleles = [allele[3] for allele in variant[3] if allele[4] in cluster and allele[-1] == 'full']
-            variant[5].append(round(np.mean(alleles), 1))
+            variant[6].append(round(np.mean(alleles), 1))
 
         # assign genotype to each allele
         for allele in variant[3]:
             assigned = False
             for i in range(len(clusters)):
                 if allele[4] in clusters[i]:
-                    allele.append(variant[5][i])
+                    allele.append(variant[6][i])
                     assigned = True
                     break
 
@@ -76,16 +78,17 @@ class Variant:
         out = []
         for allele, support in gt:
             out.append('{}({})'.format(allele, support))
-        variant[6] = ';'.join(out)
+        variant[7] = ';'.join(out)
 
     @classmethod
     def to_tsv(cls, variant):
-        sorted_genotypes = sorted(variant[5], reverse=True)
+        #sorted_genotypes = sorted(variant[6], reverse=True)
         cols = [variant[0],
                 variant[1],
                 variant[2],
                 variant[4],
-                variant[6],
+                variant[5],
+                variant[7],
                 ]
         return list(map(str, cols))
 
@@ -95,7 +98,7 @@ class Variant:
 
         if variant[5]:
             n = 0
-            for allele in sorted(variant[5], reverse=True):
+            for allele in sorted(variant[6], reverse=True):
                 reads = [a for a in variant[3] if a[9] == allele and a[4] - ref_size >= min_expansion]
                 n += len(reads)
 

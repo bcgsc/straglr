@@ -767,7 +767,7 @@ class TREFinder:
     def alleles_to_variants(self, alleles):
         variants = []
         for locus in alleles.keys():
-            variant = [locus[0], locus[1], locus[2], [], None, [], '-']
+            variant = [locus[0], locus[1], locus[2], [], None, None, [], '-']
 
             # check for minimum number of supporting reads
             if len(alleles[locus]) < self.min_support:
@@ -789,6 +789,8 @@ class TREFinder:
                 # update pattern counts
                 if alleles[locus][read][-1] == 'full':
                     pat_counts.update(alleles[locus][read][1])
+
+            variant[5] = len(variant[3])
 
             if not pat_counts:
                 if self.debug:
@@ -1183,6 +1185,9 @@ class TREFinder:
                     allele = [read] + ['NA'] * 7 + [label]
                     variant[3].append(allele)
 
+            # udpate coverage
+            variant[5] = len(variant[3])
+
     def examine_ins(self, ins_list, min_expansion=0):
         def filter_tres(ins_list, tre_events):
             for ins in ins_list:
@@ -1279,7 +1284,7 @@ class TREFinder:
                 out.write('#{} {}\n'.format(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), cmd))
             out.write('#{}\n'.format('\t'.join(Variant.tsv_headers + Allele.tsv_headers)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
-                if not variant[5]:
+                if not variant[6]:
                     continue
                 variant_cols = Variant.to_tsv(variant)
                 for status in read_status:
