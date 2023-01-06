@@ -15,7 +15,7 @@ class Variant:
     tsv_headers = ['chrom',
                    'start',
                    'end',
-                   'repeat_unit',
+                   'target_repeat',
                    'genotype',
                    ]
 
@@ -42,7 +42,7 @@ class Variant:
             if report_in_size:
                 alleles = cluster
             else:
-                alleles = [allele[3] for allele in variant[3] if allele[4] in cluster and allele[-2] == 'full']
+                alleles = [allele[3] for allele in variant[3] if allele[4] in cluster and allele[-1] == 'full']
             variant[5].append(round(np.mean(alleles), 1))
 
         # assign genotype to each allele
@@ -56,14 +56,11 @@ class Variant:
 
             # '-' assigned if read is an outlier in clustering or 'partial'
             if not assigned:
-                gt = '-'
-                if allele[-1] != 'full':
-                    gt += ' ({})'.format(allele[-1])
-                allele.append(gt)
+                allele.append('NA')
 
     @classmethod
     def get_genotype(cls, variant):
-        allele_counts = Counter([allele[-1] for allele in variant[3]])
+        allele_counts = Counter([allele[-1] for allele in variant[3] if type(allele[-1]) is not str])
         gt = []
         for allele in sorted([a for a in allele_counts.keys() if type(a) is not str], reverse=True) +\
                              [a for a in allele_counts.keys() if type(a) is str]:
@@ -111,8 +108,8 @@ class Variant:
 
     @classmethod
     def update_coords(cls, variant):
-        genome_starts = [a[5] for a in variant[3]]
-        genome_ends = [a[6] for a in variant[3]]
+        genome_starts = [a[5] for a in variant[3] if a[-1] == 'full']
+        genome_ends = [a[6] for a in variant[3] if a[-1] == 'full']
         if genome_starts and genome_ends:
             variant[1] = int(np.median(genome_starts))
             variant[2] = int(np.median(genome_ends))
@@ -144,13 +141,14 @@ class Allele:
     8: label
     9: genotype
     """
-    tsv_headers = ['read',
-                   'repeat_read',
+    tsv_headers = ['read_name',
+                   'actual_repeat',
                    'copy_number',
                    'size',
                    'read_start',
                    'strand',
                    'allele',
+                   'read_status',
                    ]
 
     summary_headers = ['reads',
@@ -169,5 +167,6 @@ class Allele:
                         cols[1],
                         cols[7],
                         cols[9],
+                        cols[8]
                         ]
         return list(map(str, cols_ordered))
