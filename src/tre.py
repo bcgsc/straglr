@@ -1029,6 +1029,7 @@ class TREFinder:
                             if not seq:
                                 if self.debug:
                                     print('problem getting seq2 {} {}'.format(aln.query_name, locus))
+                                    skipped_reads[(locus[0], str(locus[1]), str(locus[2]))][aln.query_name] = 'failed (cannot_extract_sequence)'
                                 continue
                         else:
                             if aln1.query_alignment_length > aln2.query_alignment_length:
@@ -1086,6 +1087,7 @@ class TREFinder:
                     if seq is None:
                         if self.debug:
                             print('problem getting seq1 {} {} {} {} {}'.format(aln.query_name, locus, tstart, tend, qstart))
+                            skipped_reads[(locus[0], str(locus[1]), str(locus[2]))][aln.query_name] = 'failed (cannot_extract_sequence)'
                         continue
                     
                     # leave patterns out, some too long for trf header
