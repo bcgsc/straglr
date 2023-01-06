@@ -17,6 +17,7 @@ class Variant:
                    'start',
                    'end',
                    'target_repeat',
+                   'locus',
                    'coverage',
                    'genotype',
                    ]
@@ -87,6 +88,7 @@ class Variant:
                 variant[1],
                 variant[2],
                 variant[4],
+                '{}:{}-{}'.format(variant[0], variant[1], variant[2]),
                 variant[5],
                 variant[7],
                 ]
