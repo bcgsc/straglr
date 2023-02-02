@@ -1,6 +1,7 @@
 import numpy as np
 from collections import Counter
 from .cluster import Cluster
+from operator import itemgetter
 
 class Variant:
     """
@@ -26,13 +27,13 @@ class Variant:
 
     @classmethod
     def set_genotype_config(cls, method=None, min_reads=None, max_num_clusters=3, eps=None):
-        genotype_config = {'min_reads': 4, 'max_num_clusters': max_num_clusters}
+        cls.genotype_config = {'min_reads': 4, 'max_num_clusters': max_num_clusters}
 
         # minimum number of reads per cluster
         if min_reads is not None:
-            genotype_config['min_reads'] = min_reads
+            cls.genotype_config['min_reads'] = min_reads
 
-        cls.clustering = Cluster(genotype_config['min_reads'], genotype_config['max_num_clusters'])
+        cls.clustering = Cluster(cls.genotype_config['min_reads'], cls.genotype_config['max_num_clusters'])
 
     @classmethod
     def genotype(cls, variant, report_in_size=False):
@@ -57,20 +58,49 @@ class Variant:
                     assigned = True
                     break
 
-            # '-' assigned if read is an outlier in clustering or 'partial'
+            # 'NA' assigned if read is an outlier in clustering or 'partial'
             if not assigned:
                 allele.append('NA')
 
+        partials = [r for r in variant[3] if r[-2] == 'partial']
+        if partials:
+            # get biggest allele size that can be clustered
+            partials_sorted = sorted(partials, key=itemgetter(4), reverse=True)
+            biggest_partial_size = partials_sorted[0][4]
+            
+            bigger_alleles = [a for a in variant[6] if a > biggest_partial_size]
+
+            if bigger_alleles:
+                # only 1 allele bigger than biggest partial, assign allele to all partials
+                if len(bigger_alleles) == 1:
+                    for p in partials:
+                        p[-1] = bigger_alleles[0]
+
+            else:
+                if variant[6]:
+                    max_gt_size = sorted(variant[6], reverse=True)[0]
+                else:
+                    max_gt_size = 0 
+                # find all partials with sizes bigger than current biggest size
+                biggers = [p for p in partials if p[4] > max_gt_size]
+
+                # if there are enough partials bigger than minimum, create allele
+                if len(biggers) >= cls.genotype_config['min_reads']:
+                    biggest_partial_size = max([r[4] for r in biggers])
+                    gt = '>{}'.format(biggest_partial_size)
+                    variant[6].append(gt)
+                    for p in partials:
+                        p[-1] = gt
+                        p[3] = round(float(p[4]) / len(variant[4]), 1) 
+            
     @classmethod
     def get_genotype(cls, variant):
-        allele_counts = Counter([allele[-1] for allele in variant[3] if type(allele[-1]) is not str])
-        gt = []
-        for allele in sorted([a for a in allele_counts.keys() if type(a) is not str], reverse=True) +\
-                             [a for a in allele_counts.keys() if type(a) is str]:
-            if type(allele) is str and len(allele_counts.keys()) > 1:
-                continue
+        allele_counts = Counter([allele[-1] for allele in variant[3] if allele[-1] != '-' and allele[-1] != 'NA'])
+        # for partial
+        gt = [(a, allele_counts[a]) for a in allele_counts.keys() if type(a) is str and a[0] == '>']
+        for allele in sorted([a for a in allele_counts.keys() if type(a) is not str], reverse=True):
             gt.append((allele, allele_counts[allele]))
-
+        
         return gt
 
     @classmethod
@@ -83,7 +113,6 @@ class Variant:
 
     @classmethod
     def to_tsv(cls, variant):
-        #sorted_genotypes = sorted(variant[6], reverse=True)
         cols = [variant[0],
                 variant[1],
                 variant[2],
@@ -100,7 +129,14 @@ class Variant:
 
         if variant[5]:
             n = 0
-            for allele in sorted(variant[6], reverse=True):
+            alleles = []
+            for allele in variant[6]:
+                if type(allele) is str and allele[0] == '>':
+                    alleles.append((allele, float(allele[1:])))
+                elif type(allele) is not str:
+                    alleles.append((allele, allele))
+            
+            for allele, size in sorted(alleles, key=itemgetter(1), reverse=True):
                 reads = [a for a in variant[3] if a[9] == allele and a[4] - ref_size >= min_expansion]
                 n += len(reads)
 
@@ -121,6 +157,7 @@ class Variant:
 
     @classmethod
     def summarize_alleles(cls, alleles):
+
         reads = []
         sizes = []
         cns = []

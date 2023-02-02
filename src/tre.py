@@ -115,9 +115,13 @@ class TREFinder:
     def extract_tres(self, ins_list, target_flank=3000):
         genome_fasta = pysam.Fastafile(self.genome_fasta)
 
+        unpaired_clips = set()
         # prepare input for trf
         trf_input = ''
         for ins in ins_list:
+            eid = INS.eid(ins)
+            if ins[6] == 'ins_unpaired-clipped':
+                unpaired_clips.add(eid)
             target_start, target_end = ins[1] - target_flank + 1, ins[1] + target_flank
             prefix = '.'.join(map(str, [INS.eid(ins), len(ins[5]), target_start, target_end]))
             trf_input += '>{}.q\n{}\n'.format(prefix, ins[7])
@@ -136,7 +140,7 @@ class TREFinder:
                 grouped_results[read] = {}
             grouped_results[read][read_type] = results[seq]
 
-        expansions = self.analyze_trf(grouped_results, target_flank)
+        expansions = self.analyze_trf(grouped_results, target_flank, unpaired_clips)
 
         if self.remove_tmps:
             self.cleanup()
@@ -146,16 +150,17 @@ class TREFinder:
     def extract_genome_neighbour(self, chrom, tpos, w, genome_fasta):
         return genome_fasta.fetch(chrom, max(0, tpos - w), tpos + w)
     
-    def analyze_trf(self, results, target_flank, full_cov=0.7):
+    def analyze_trf(self, results, target_flank, unpaired_clips, full_cov=0.7):
         same_pats = self.find_similar_long_patterns_ins(results)
 
         expansions = {}
         for seq_id in sorted(results.keys()):
             eid, ins_len, gstart, gend = seq_id.rsplit('.', 3)
+            force_target_match = True if eid in unpaired_clips else False
 
             if 't' in results[seq_id]:
-                pat, pgstart, pgend = self.analyze_trf_per_seq(results[seq_id], int(ins_len), int(gstart), int(gend), same_pats, target_flank, full_cov=full_cov, seq_id=seq_id)
-                if pat is not None:
+                pat, pgstart, pgend = self.analyze_trf_per_seq(results[seq_id], int(ins_len), int(gstart), int(gend), same_pats, target_flank, force_target_match, full_cov=full_cov, seq_id=seq_id)
+                if pat is not None and pgstart is not None and pgend is not None:
                     expansions[eid] = pat, pgstart, pgend
 
         return expansions
@@ -248,7 +253,7 @@ class TREFinder:
 
         return merge_spans(merged_list + gaps_filled)
 
-    def analyze_trf_per_seq(self, result, ins_len, gstart, gend, same_pats, target_flank, full_cov=0.8, mid_pt_buf=50, seq_id=None):
+    def analyze_trf_per_seq(self, result, ins_len, gstart, gend, same_pats, target_flank, force_target_match=False, full_cov=0.8, mid_pt_buf=50, seq_id=None):
         pattern_matched = None
         pgstart, pgend = None, None
 
@@ -304,7 +309,7 @@ class TREFinder:
                             r = filtered_results['t'][i]
                             if len(set(r[13])) == 1:
                                 continue
-                            if i_pat in r[13] or r[13] in i_pat or self.is_same_repeat((i_pat, r[13]), same_pats):
+                            if not force_target_match and (i_pat in r[13] or r[13] in i_pat or self.is_same_repeat((i_pat, r[13]), same_pats)):
                                 if rep_len is None or rep_lens[i] > rep_len:
                                     pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
                                     rep_len = rep_lens[i]
@@ -314,7 +319,7 @@ class TREFinder:
                 break
 
         # reference and query(flanking) may not have the repeat long enough for trf to detect
-        if not pattern_matched and filtered_patterns['i']:
+        if not pattern_matched and filtered_patterns['i'] and not force_target_match:
             # if target patterns don't match, but there is, just use longest one
             if filtered_results['t']:
                 tpats = [r for r in filtered_results['t'] if int(r[0]) <= target_flank and int(r[1]) >= target_flank]
@@ -359,14 +364,22 @@ class TREFinder:
         if self.debug:
             tres_merged_file = create_tmp_file('')
             tres_merged.saveas(tres_merged_file)
-            print('tres_loci merged {}'.format(tres_merged_file))
-    
+            print('tres_loci(merged) {}'.format(tres_merged_file))
+        
         merged = []
         for tre in tres_merged:
+            # number of reads may change after determining whether it's TRE
+            if int(tre[4]) < self.min_support:
+                continue
             repeats = sorted(tre[3].split(','), key=len)
             if len(repeats[0]) < self.min_str_len:
                 continue
             merged.append([tre[0], int(tre[1]), int(tre[2]), tre[3]])
+
+        if self.debug:
+            tres_merged_file = create_tmp_file('')
+            BedTool('\n'.join(['\t'.join(list(map(str, m))) for m in merged]), from_string=True).saveas(tres_merged_file)
+            print('tres_loci(final) {}'.format(tres_merged_file))
 
         return merged
 
@@ -957,13 +970,18 @@ class TREFinder:
 
         for locus in loci:
             clipped = defaultdict(dict)
+            read_spans = {}
             alns = []
-            all_reads = set()
             for aln in bam.fetch(locus[0], locus[1] - split_neighbour_size, locus[2] + split_neighbour_size):
                 if not reads_fasta and not aln.query_sequence:
                     continue
+
+                if not aln.query_name in read_spans:
+                    read_spans[aln.query_name] = {'starts':defaultdict(int), 'ends':defaultdict(int)}
+                read_spans[aln.query_name]['starts'][aln.reference_start] += 1
+                read_spans[aln.query_name]['ends'][aln.reference_end] += 1
+                
                 alns.append(aln)
-                all_reads.add(aln.query_name)
                 strands[aln.query_name] = '-' if aln.is_reverse else '+'
                 locus_size = locus[2] - locus[1] + 1
 
@@ -986,17 +1004,13 @@ class TREFinder:
                         check_end = 'start'
                     elif end_olap and not start_olap:
                         check_end = 'end'
-                    elif start_olap and end_olap:
-                        if start_olap_size < end_olap_size:
-                            check_end = 'start'
-                        elif start_olap_size > end_olap_size:
-                            check_end = 'end'
+                    
                     clipped_end = None
                     if check_end is not None:
                         clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end, use_sa=True)
                     if clipped_end is not None:
                         clipped[aln.query_name][clipped_end] = (aln, partner_start)
-
+            
             # clipped alignment
             remove = set()
             for read in clipped.keys():
@@ -1278,39 +1292,46 @@ class TREFinder:
         self.strict = True
 
         return self.collect_alleles(loci)
-    
+   
     def output_tsv(self, variants, out_file, cmd=None):
-        read_status = [('full', 'partial'), 'failed', 'skipped']
         with open(out_file, 'w') as out:
             if cmd is not None:
                 out.write('#{} {}\n'.format(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), cmd))
+            
+            # header
             out.write('#{}\n'.format('\t'.join(Variant.tsv_headers + Allele.tsv_headers)))
+
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
                 if not variant[6]:
                     continue
                 variant_cols = Variant.to_tsv(variant)
-                for status in read_status:
-                    alleles_with_size = []
-                    alleles_without_size = []
-                    # full/partial: should have size
-                    if type(status) is tuple:
-                        for s in status:
-                            alleles_with_size.extend([a for a in variant[3] if s in a[-2] and a[4] is not str])
-                            alleles_without_size.extend([a for a in variant[3] if s in a[-2] and a[4] is str])
-                    # faild/skipped: may or may not have size
-                    else:
-                        alleles_with_size.extend([a for a in variant[3] if status in a[-2] and type(a[4]) is not str])
-                        alleles_without_size.extend([a for a in variant[3] if status in a[-2] and type(a[4]) is str])
-                    for allele in sorted(alleles_with_size, key=itemgetter(4), reverse=True):
-                        allele_cols = Allele.to_tsv(allele)
-                        out.write('{}\n'.format('\t'.join(variant_cols + allele_cols)))
-                    for allele in sorted(alleles_without_size, key=itemgetter(8,0), reverse=True):
-                        allele_cols = Allele.to_tsv(allele)
-                        out.write('{}\n'.format('\t'.join(variant_cols + allele_cols)))
+                
+                # partial allele
+                gt_alleles = [a for a in variant[6] if type(a) is str and a[0] == '>']
+                # full alleles, sorted by size
+                gt_alleles.extend(sorted([a for a in variant[6] if type(a) is not str], reverse=True))
+    
+                reads_sorted = []
+                for allele in gt_alleles:
+                    reads_sorted.extend(sorted([r for r in variant[3] if r[-1] == allele], key=itemgetter(4), reverse=True))
 
+                # read with size but failed clustering
+                reads_sorted.extend(sorted([r for r in variant[3] if r[-1] not in variant[6] and not 'failed' in r[-2] and not 'skipped' in r[-2] and type(r[4]) is not str], key=itemgetter(4), reverse=True))
+                # failed and skipped reads, sorted by fail reason
+                reads_sorted.extend(sorted([r for r in variant[3] if 'failed' in r[-2]], key=itemgetter(8,0), reverse=True))
+                reads_sorted.extend(sorted([r for r in variant[3] if 'skipped' in r[-2]], key=itemgetter(8,0), reverse=True))
+
+                for read in reads_sorted:
+                    read_cols = Allele.to_tsv(read)
+                    out.write('{}\n'.format('\t'.join(variant_cols + read_cols)))
+        
     def output_bed(self, variants, out_file):
         headers = Variant.bed_headers
-        for i in range(self.max_num_clusters):
+        if variants:
+            max_num_clusters = max(self.max_num_clusters, max([len(v[6]) for v in variants]))
+        else:
+            max_num_clusters = self.max_num_clusters
+        for i in range(max_num_clusters):
             for j in ('size', 'copy_number', 'support'):
                 headers.append('allele{}:{}'.format(i+1, j))
 
@@ -1322,23 +1343,34 @@ class TREFinder:
                 copy_numbers = []
                 supports = []
 
-                gt = Variant.get_genotype(variant)
-                for allele, support in gt:
-                    if type(allele) is str:
-                        continue
+                alleles_minimum = [v for v in variant[6] if type(v) is str]
+                alleles_numeric = [v for v in variant[6] if type(v) is not str]
+                for allele_str in sorted(alleles_minimum, reverse=True):
+                    allele = float(allele_str[1:])
+                    if self.genotype_in_size:
+                        sizes.append(allele_str)
+                        copy_numbers.append('>{}'.format(round(allele / len(variant[4]) , 1)))
+                    else:
+                        copy_numbers.append(allele)
+                        sizes.append('>{}'.format(allele * len(variant[4])))
+                    support = len([r for r in variant[3] if r[-1] == allele_str])
                     supports.append(support)
+
+                for allele in sorted(alleles_numeric, reverse=True):
                     if self.genotype_in_size:
                         sizes.append(allele)
                         copy_numbers.append(round(allele / len(variant[4]) , 1))
                     else:
                         copy_numbers.append(allele)
                         sizes.append(allele * len(variant[4]))
+                    support = len([r for r in variant[3] if r[-1] == allele])
+                    supports.append(support)
 
                 for size, copy_number, support in zip(sizes, copy_numbers, supports):
                     cols.extend([size, copy_number, support])
 
-                if len(gt) < self.max_num_clusters:
-                    for i in range(self.max_num_clusters - len(gt)):
+                if len(variant[6]) < max_num_clusters:
+                    for i in range(max_num_clusters - len(variant[6])):
                         cols.extend(['-'] * 3)
 
                 out.write('{}\n'.format('\t'.join(map(str, cols))))

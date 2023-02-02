@@ -39,7 +39,7 @@ class INS:
         return '\t'.join(map(str, cols))
 
 class INSFinder:
-    def __init__(self, bam, genome_fasta, min_size, w=100, reads_fasta=None, exclude=None, chroms=None, nprocs=None, min_support=None, max_cov=100, debug=False):
+    def __init__(self, bam, genome_fasta, min_size, w=100, reads_fasta=None, exclude=None, chroms=None, nprocs=None, min_support=None, max_cov=100, use_unpaired_clips=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
 
@@ -63,6 +63,8 @@ class INSFinder:
         self.max_cov = max_cov
 
         self.debug = debug
+
+        self.use_unpaired_clips = use_unpaired_clips
 
         self.tmp_files = set()
 
@@ -220,7 +222,7 @@ class INSFinder:
 
         return ins_list
 
-    def extract_ins_from_clipped(self, clipped_pairs, bam, read_spans, reads_fasta=None):
+    def extract_ins_from_clipped(self, clipped_pairs, bam, read_spans, max_nm=0.1, reads_fasta=None):
         ins_from_clipped = []
         for read in clipped_pairs.keys():
             if 'start' in clipped_pairs[read] and 'end' in clipped_pairs[read]:
@@ -255,6 +257,48 @@ class INSFinder:
                                                  'ins',
                                                  None],
                                                 )
+
+            elif self.use_unpaired_clips:
+                aln = None
+                target_pos = None
+                query_pos = None
+                ins_seq = ''
+                end = None
+                if 'start' in clipped_pairs[read]:
+                    end = 'start'
+                    aln = clipped_pairs[read]['start'][0]
+                    if len(read_spans[read]['starts'].keys()) > 1 or read_spans[read]['starts'][aln.reference_start] > 1:
+                        continue
+                    target_pos, query_pos = aln.reference_start, aln.query_alignment_start
+                    if not reads_fasta:
+                        ins_seq = aln.query_sequence[:aln.query_alignment_start]
+                else:
+                    end = 'end'
+                    aln = clipped_pairs[read]['end'][0]
+                    if len(read_spans[read]['ends'].keys()) > 1 or read_spans[read]['ends'][aln.reference_end] > 1:
+                        continue
+                    target_pos, query_pos = aln.reference_end, aln.query_alignment_end
+                    if not reads_fasta:
+                        ins_seq = aln.query_sequence[aln.query_alignment_end:]
+
+                if not aln.has_tag('NM') or aln.get_tag('NM')/aln.query_alignment_length > max_nm:
+                    if self.debug:
+                        if not aln.has_tag('NM'):
+                            print('skip_partial(NM tag unavailable)', aln.query_name, aln.reference_start, aln.reference_end, aln.cigarstring) 
+                        else:
+                            print('skip_partial', aln.query_name, aln.reference_start, aln.reference_end, end, target_pos, aln.cigarstring, aln.get_tag('NM'), aln.query_alignment_length, aln.get_tag('NM')/aln.query_alignment_length)
+                    continue
+
+                if aln is not None and len(ins_seq) >= self.min_size:
+                   ins_from_clipped.append([aln.reference_name,
+                                            target_pos,
+                                            target_pos + 1,
+                                            aln.query_name,
+                                            query_pos,
+                                            ins_seq,
+                                            'ins_unpaired-clipped',
+                                            None],
+                                            )
 
         return ins_from_clipped
 

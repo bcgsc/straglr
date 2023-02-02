@@ -20,6 +20,8 @@ class Cluster:
         models = [None for i in range(len(N))]
         AICs = []
         BICs = []
+        if len(x) == 1:
+            return []
         if len(set(x)) == 1:
             return [x]
         for i in range(len(N)):

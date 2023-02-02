@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument("--min_str_len", type=int, help="minimum STR length. Default:2", default=2)
     parser.add_argument("--max_num_clusters", type=int, help="maximum number of clusters to try. Default:2", default=2)
     parser.add_argument("--max_cov", type=int, help="maximum allowed coverage for ins inspection. Default:100", default=100)
+    parser.add_argument("--use_unpaired_clips", action='store_true', help="also examine unpaired clipped alignments when scanning (should only use for targeted region, very slow for whole genome scan)")
     parser.add_argument("--trf_args", type=int, nargs=7, help="tandem repeat finder arguments. Default:2 5 5 80 10 10 500", metavar=trf_args_meta, default=[2,5,5,80,10,10,500])
     parser.add_argument("--tmpdir", type=str, help="directory to use for generating tmp files instead of system TEMP")
     parser.add_argument("--debug", action='store_true', help="debug mode i.e. keep trf output")
@@ -66,6 +67,7 @@ def main():
                                nprocs=args.nprocs,
                                min_support=args.min_support,
                                max_cov=args.max_cov,
+                               use_unpaired_clips=args.use_unpaired_clips,
                                debug=args.debug,
                                )
         # find ins
