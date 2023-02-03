@@ -39,7 +39,7 @@ class INS:
         return '\t'.join(map(str, cols))
 
 class INSFinder:
-    def __init__(self, bam, genome_fasta, min_size, w=100, reads_fasta=None, exclude=None, chroms=None, nprocs=None, min_support=None, max_cov=100, use_unpaired_clips=False, debug=False):
+    def __init__(self, bam, genome_fasta, min_size, w=100, reads_fasta=None, exclude=None, chroms=None, nprocs=None, min_support=None, max_cov=100, use_unpaired_clips=False, include_alt_chroms=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
 
@@ -68,11 +68,16 @@ class INSFinder:
 
         self.tmp_files = set()
 
+        self.include_alt_chroms = include_alt_chroms
+
     def find_ins(self, regions_bed_file=None):
         bam = pysam.Samfile(self.bam, 'rb')
 
         if regions_bed_file is None:
-            chroms = [chrom for chrom in bam.references if not '_' in chrom and not 'M' in chrom]
+            if not self.include_alt_chroms:
+                chroms = [chrom for chrom in bam.references if not '_' in chrom and not 'M' in chrom]
+            else:
+                chroms = bam.references
             if self.chroms:
                 chroms = self.chroms
 

@@ -148,7 +148,7 @@ class TREFinder:
         return expansions
 
     def extract_genome_neighbour(self, chrom, tpos, w, genome_fasta):
-        return genome_fasta.fetch(chrom, max(0, tpos - w), tpos + w)
+        return genome_fasta.fetch(chrom, max(0, tpos - w), min(tpos + w, genome_fasta.get_reference_length(chrom)))
     
     def analyze_trf(self, results, target_flank, unpaired_clips, full_cov=0.7):
         same_pats = self.find_similar_long_patterns_ins(results)
@@ -160,7 +160,7 @@ class TREFinder:
 
             if 't' in results[seq_id]:
                 pat, pgstart, pgend = self.analyze_trf_per_seq(results[seq_id], int(ins_len), int(gstart), int(gend), same_pats, target_flank, force_target_match, full_cov=full_cov, seq_id=seq_id)
-                if pat is not None and pgstart is not None and pgend is not None:
+                if pat is not None and pgstart is not None and pgend is not None and pgstart > 0 and pgstart < pgend:
                     expansions[eid] = pat, pgstart, pgend
 
         return expansions
@@ -739,7 +739,7 @@ class TREFinder:
 
         read_seqs = {}
         for region, reads in grouped_reads.items():
-            for aln in bam.fetch(region[0], int(region[1]), int(region[2])):
+            for aln in bam.fetch(region[0], max(0, int(region[1])), min(int(region[2]), bam.get_reference_length(region[0]))):
                 if aln.query_name in reads:
                     read_seqs[aln.query_name] = aln.query_sequence
 
@@ -872,7 +872,7 @@ class TREFinder:
         else:
             pstart = locus[2]
             pend = pstart + self.trf_flank_size
-        pseq = genome_fasta.fetch(locus[0], max(0, pstart), pend)
+        pseq = genome_fasta.fetch(locus[0], max(0, pstart), min(pend, genome_fasta.get_reference_length(locus[0])))
         return pstart, pend, pseq
 
     def parse_blastn(self, blastn_out):
@@ -972,7 +972,11 @@ class TREFinder:
             clipped = defaultdict(dict)
             read_spans = {}
             alns = []
-            for aln in bam.fetch(locus[0], locus[1] - split_neighbour_size, locus[2] + split_neighbour_size):
+            # add this check in case alt chromosomes are included
+            check_span = max(0, locus[1] - split_neighbour_size), min(locus[2] + split_neighbour_size, bam.get_reference_length(locus[0]))
+            if check_span[0] > check_span[1]:
+                continue
+            for aln in bam.fetch(locus[0], check_span[0], check_span[1]):
                 if not reads_fasta and not aln.query_sequence:
                     continue
 

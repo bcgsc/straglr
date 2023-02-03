@@ -20,6 +20,7 @@ def parse_args():
     parser.add_argument("--nprocs", type=int, help="number of processes", default=1)
     parser.add_argument("--chroms", type=str, nargs="+", help="chromosomes")
     parser.add_argument("--loci", type=str, help="bed file of loci for genotyping")
+    parser.add_argument("--include_alt_chroms", action='store_true', help="include alternate chromosomes. By default, only chroms 1-22,X,Y are considered in genome scan")
     parser.add_argument("--min_support", type=int, help="minimum number of supporting reads for detecting expansion. Default:2", default=2)
     parser.add_argument("--min_cluster_size", type=int, help="minimum number of supporting reads for allele clustering. Default:2", default=2)
     parser.add_argument("--genotype_in_size", action="store_true", help="report genotype in size instead of copy numbers")
@@ -64,6 +65,7 @@ def main():
                                reads_fasta=args.reads_fasta,
                                exclude=args.exclude,
                                chroms=args.chroms,
+                               include_alt_chroms=args.include_alt_chroms,
                                nprocs=args.nprocs,
                                min_support=args.min_support,
                                max_cov=args.max_cov,
