@@ -39,6 +39,10 @@ Some common parameters:
 
 `--regions`: a BED file containing regions to be used only in genome-scan
 
+`--include_alt_chroms`: include ALT chromosomes (chromosomes with "_" in names)  in genome scan (Default: NOT included)
+
+`--use_unpaired_clips`: include examination of unpaired clipped alignments in genome scan to detect expansion beyond read size (Default:NOT used)
+
 `--min_support`: minimum number of suppport reads for an expansion to be captured in genome-scan (Default:2)
 
 `--min_ins_size`: minimum increase in size (relative to the reference genome) for an expansion to be captured in genome-scan (Default:100)
@@ -47,7 +51,7 @@ Some common parameters:
 
 `--max_str_len`: maximum length of repeat-motif for an expansion to be captured in genome-scan (Default:50)
 
-`--nprocs`: number of processes to use in Python's multiprocessing
+`--nprocs`: number of processes to use in Python's multiprocessing (Default:1)
 
 `--genotype_in_size`: report genotype (column 5 of TSV output) in terms of allele sizes instead of copy numbers
 
@@ -55,7 +59,7 @@ Some common parameters:
 
 `--min_cluster_size`: minimum number of reads required to constitute a cluster (allele) in GMM clustering (Default:2)
 
-`--working_dir`: working directory (Default: current directory)
+`--trf_args`: TRF arguments (Default:2 5 5 80 10 10 500)
 
 `--tmpdir`: user-specified directory for holding temporary files
 
@@ -89,13 +93,29 @@ Highly repetitive genomic regions may be problematic for aligners and give rise 
 	* chrom - chromosome name
 	* start - start coordinate of locus
 	* end - end coordinate of locus
-	* repeat_unit - repeat motif
-	* genotype - copy numbers (default) or sizes (`--genotype_in_size`) of each allele detected for given locus, separate by semi-colon(";") if multiple alleles detected, with number of support reads in bracket following each allele copy number/size. An example of a heterozygyous allele in size: `990.8(10);30.9(10)`
-	* read - name of support read
+	* target_repeat - consensus(shortest) repeat motif from genome scan or target motif in genotyping
+	* locus - locus in UCSC format (chrom:start-end)
+	* coverage - coverage depth of locus
+	* genotype - copy numbers (default) or sizes (`--genotype_in_size`) of each allele detected for given locus, separate by semi-colon(";") if multiple alleles detected, with number of support reads in bracket following each allele copy number/size. An example of a heterozygyous allele in size: `990.8(10);30.9(10)` (Alleles preceded by `>` indicate minimum values, as full alleles are not captured in any support reads)
+	* actual_repeat - actual repeat motif detected in mapped read
+	* read_name - mapped read name
 	* copy_number - number of copies of repeat in allele
 	* size - size of allele
 	* read_start - start position of repeat in support read
-	* allele - allele that support read is assigned to
+	* strand - strand of reference genome from which read originates
+	* allele - allele to which support read is assigned
+	* read_status - classification of mapped read
+		* "full": read captures entire repeat (counted as support read)
+		* "partial": read does not capture entire repeat (counted as support read)
+		* "skipped": "not_spanning" - read does not span across locus (NOT counted as support read)
+		* "failed" - read not used for genotyping (NOT counted as support read). Reasons are indicated with following descriptors:
+		|Descriptor|Explanation|
+		|---|:---|
+		|cannot_extract_sequence| cannot extract repeat sequence, could be because the repeat is deleted for the read in question, or regions flanking motif are deleted|
+		|motif_size_out_of_range|motif size detected outside specified size range|
+		|insufficent_repeat_coverage|repeat detected does not cover enough (50%) of expansion/insertion sequence|
+		|partial_and_insufficient_span|repeat not covering enough (90%) query minus flanking sequences|
+		|unmatched_motif|no repeat found matching target motif|
 
 2. \<output_prefix>.bed - summarized genotypes one locus per line
 	* chrom - chromosome name

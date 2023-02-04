@@ -38,3 +38,12 @@ v1.3.0
 - new parameter `trf_args` to allow user specify his own preferred TRF settings
 - changed seeding method of Gaussian Mixture Model to "k-means++" to reduce CPU overhead
 - `--working_directory` added to allow user specify working directory, otherwise current directory will be used
+
+v1.4.0
+- `locus`, `coverage`, `actual_repeat`, `read_status` columns added, `repeat_unit` renamed as `target_repeat` in `.tsv` output 
+- report failed reads in `.tsv` output with reason given in `read_status` column
+- added reporting of unpaired clipped alignments in genotyping results
+- allow unpaired clipped alignments to initiate TRE search in genome scan
+- added `--include_alt_chroms` to include ATL chromosomes in genome scan; added code to ensure chromosome boundaries are not violated
+- get rid of `--working_directory`, all temporary files will be found in `$TMPDIR` (or location specified by `--tmpdir`) if `--debug` is turned on
+
