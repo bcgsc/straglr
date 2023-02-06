@@ -109,6 +109,7 @@ Highly repetitive genomic regions may be problematic for aligners and give rise 
 		* "partial": read does not capture entire repeat (counted as support read)
 		* "skipped": "not_spanning" - read does not span across locus (NOT counted as support read)
 		* "failed" - read not used for genotyping (NOT counted as support read). Reasons are indicated with following descriptors:
+		
 		| Descriptor | Explanation |
 		| --- | :--- |
 		| cannot_extract_sequence | cannot extract repeat sequence, could be because the repeat is deleted for the read in question, or regions flanking motif are deleted |
