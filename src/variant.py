@@ -65,9 +65,13 @@ class Variant:
         partials = [r for r in variant[3] if r[-2] == 'partial']
         if partials:
             # get biggest allele size that can be clustered
-            partials_sorted = sorted(partials, key=itemgetter(4), reverse=True)
-            biggest_partial_size = partials_sorted[0][4]
-            
+            if report_in_size:
+                partials_sorted = sorted(partials, key=itemgetter(4), reverse=True)
+                biggest_partial_size = partials_sorted[0][4]
+            else:
+                partials_sorted = sorted(partials, key=itemgetter(3), reverse=True)
+                biggest_partial_size = partials_sorted[0][3]
+
             bigger_alleles = [a for a in variant[6] if a > biggest_partial_size]
 
             if bigger_alleles:

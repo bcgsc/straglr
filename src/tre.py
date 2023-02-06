@@ -819,7 +819,7 @@ class TREFinder:
             variant[4] = (sorted(top_pats, key=len)[0])
             for allele in variant[3]:
                 #allele[2] = variant[4]
-                if allele[-1] != 'full':
+                if allele[-1] != 'full' and allele[-1] != 'partial':
                     allele[3] = 'NA'
                     continue
                 allele[3] = round(float(allele[4]) / len(variant[4]), 1)
