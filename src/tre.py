@@ -491,7 +491,7 @@ class TREFinder:
         queries = defaultdict(set)
         targets = defaultdict(set)
         for seq in results.keys():
-            cols = seq.split(':')
+            cols = seq.split(':')[:-1]
             if len(cols) < 7:
                 continue
             locus = tuple(cols[:3])
@@ -516,9 +516,10 @@ class TREFinder:
             if hits:
                 for query in hits:
                     for locus in queries.keys():
-                        if query in queries[locus] and hits[query] in targets[locus]:
-                            same_pats[locus][query] = hits[query]
-        
+                        for hit in hits[query]:
+                            if query in queries[locus] and hit in targets[locus]:
+                                same_pats[locus][query] = hits[query]
+       
         return same_pats
 
     def run_blastn_for_missed_clipped(self, query_fa, target_fa, word_size):
@@ -586,7 +587,7 @@ class TREFinder:
             else:
                 sys.exit('cannot run {}'.format(cmd))
             
-    def parse_pat_blastn(self, blastn_out, min_pid=0.8, min_alen=0.8):
+    def parse_pat_blastn(self, blastn_out, min_pid=80, min_alen=0.8):
         matches = defaultdict(set)
         with open(blastn_out, 'r') as ff:
             for line in ff:
@@ -648,6 +649,7 @@ class TREFinder:
             for result in results[seq]:
                 if len(set(result[13])) > 1 and len(result[13]) >= self.min_str_len and len(result[13]) <= self.max_str_len:
                     for pat in expected_pats:
+                        print('kk', read, result[13], pat, self.is_same_repeat((result[13], pat), same_pats=same_pats[locus]))
                         if self.is_same_repeat((result[13], pat), same_pats=same_pats[locus]):
                             results_matched.append(result)
                             pat_lens.append((result[13], len(result[-1])))
@@ -667,7 +669,7 @@ class TREFinder:
                     check_seq_len = abs(len(repeat_seqs[seq]) - 2 * flank)
                     span = float(combined_coords[0][1] - combined_coords[0][0] + 1)
                     min_span = 0.2 if check_seq_len < 50 else 0.5
-        
+ 
                     if combined_coords[0][0] >= (bounds[0] + too_far_from_read_end) or combined_coords[0][1] <= (bounds[1] - too_far_from_read_end):
                         if self.debug:
                             print('too_far_from_flank', locus, read, combined_coords[0][0], combined_coords[0][1], seq_len, too_far_from_read_end)
