@@ -649,7 +649,6 @@ class TREFinder:
             for result in results[seq]:
                 if len(set(result[13])) > 1 and len(result[13]) >= self.min_str_len and len(result[13]) <= self.max_str_len:
                     for pat in expected_pats:
-                        print('kk', read, result[13], pat, self.is_same_repeat((result[13], pat), same_pats=same_pats[locus]))
                         if self.is_same_repeat((result[13], pat), same_pats=same_pats[locus]):
                             results_matched.append(result)
                             pat_lens.append((result[13], len(result[-1])))
