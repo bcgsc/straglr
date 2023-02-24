@@ -972,7 +972,6 @@ class TREFinder:
         for locus in loci:
             used_reads = set()
             clipped = defaultdict(dict)
-            read_spans = {}
             alns = []
             # add this check in case alt chromosomes are included
             check_span = max(0, locus[1] - split_neighbour_size), min(locus[2] + split_neighbour_size, bam.get_reference_length(locus[0]))
@@ -982,11 +981,6 @@ class TREFinder:
                 if not reads_fasta and not aln.query_sequence:
                     continue
 
-                if not aln.query_name in read_spans:
-                    read_spans[aln.query_name] = {'starts':defaultdict(int), 'ends':defaultdict(int)}
-                read_spans[aln.query_name]['starts'][aln.reference_start] += 1
-                read_spans[aln.query_name]['ends'][aln.reference_end] += 1
-                
                 alns.append(aln)
                 strands[aln.query_name] = '-' if aln.is_reverse else '+'
                 locus_size = locus[2] - locus[1] + 1
