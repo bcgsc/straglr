@@ -970,6 +970,7 @@ class TREFinder:
             self.trf_flank_size = 80
 
         for locus in loci:
+            used_reads = set()
             clipped = defaultdict(dict)
             read_spans = {}
             alns = []
@@ -1064,12 +1065,15 @@ class TREFinder:
                             continue
    
                         # leave patterns out, some too long for trf header
+                        if aln1.query_name in used_reads:
+                            continue
                         header, fa_entry = self.create_trf_fasta(locus[:3], aln1.query_name, tstart, tend, qstart, seq, aln1.infer_read_length())
                         patterns[header] = locus[-1]
                         repeat_seqs[header] = seq
 
                         if not '*' in locus[-1]:
                             trf_input += fa_entry
+                            used_reads.add(aln1.query_name)
                         else:
                             generic.add(header)
                             repeat_seqs[header] = seq
@@ -1090,6 +1094,8 @@ class TREFinder:
             all_clipped[tuple(locus)] = clipped
 
             for aln in alns:
+                if aln.query_name in used_reads:
+                    continue
                 if aln.reference_start <= locus[1] - single_neighbour_size and\
                    aln.reference_end >= locus[2] + single_neighbour_size:
                     # don't consider alignment if it's deemed split at locus
@@ -1116,6 +1122,7 @@ class TREFinder:
 
                     if not '*' in locus[-1]:
                         trf_input += fa_entry
+                        used_reads.add(aln.query_name)
                     else:
                         generic.add(header)
                 else:
@@ -1129,6 +1136,8 @@ class TREFinder:
             rescued_reads = defaultdict(set)
             #rescued_reads = set()
             for read, clipped_end, qstart, qend, tstart, tend, seq, locus in rescued:
+                if read in used_reads:
+                    continue
                 #rescued_reads.add(read)
                 rescued_reads[locus].add(read)
                 clipped = all_clipped[locus]
@@ -1142,11 +1151,14 @@ class TREFinder:
 
                 if not '*' in locus[-1]:
                     trf_input += fa_entry
+                    used_reads.add(read)
                 else:
                     generic.add(header) 
 
             # unpaired clipped reads not rescued
             for locus, clipped_end, read, qstart, qend, tpos, seq in missed_clipped:
+                if read in used_reads:
+                    continue
                 clipped = all_clipped[locus]
                 if (locus in rescued_reads and read in rescued_reads[locus]) or not read in clipped:
                     continue
@@ -1158,6 +1170,7 @@ class TREFinder:
 
                 if not '*' in locus[-1]:
                     trf_input += fa_entry
+                    used_reads.add(read)
                 else:
                     generic.add(header)
 
