@@ -319,7 +319,7 @@ class TREFinder:
                 break
 
         # reference and query(flanking) may not have the repeat long enough for trf to detect
-        if not pattern_matched and filtered_patterns['i'] and not force_target_match:
+        if not pattern_matched and filtered_patterns['i'] and force_target_match:
             # if target patterns don't match, but there is, just use longest one
             if filtered_results['t']:
                 tpats = [r for r in filtered_results['t'] if int(r[0]) <= target_flank and int(r[1]) >= target_flank]
@@ -382,23 +382,6 @@ class TREFinder:
             print('tres_loci(final) {}'.format(tres_merged_file))
 
         return merged
-
-    def extract_aln_tuple_old(self, aln, tcoord, search_direction, max_extend=200):
-        found = []
-        tpos = tcoord
-        if search_direction == 'left':
-            while not found and tpos >= tcoord - max_extend:
-                found = [p for p in aln.aligned_pairs if p[1] == tpos and p[0] is not None]
-                tpos -= 1
-        else:
-            while not found and tpos <= tcoord + max_extend:
-                found = [p for p in aln.aligned_pairs if p[1] == tpos and p[0] is not None]
-                tpos += 1
-
-        if found:
-            return found[0]
-        else:
-            return found
 
     def extract_aln_tuple(self, aln, coord, search_direction, max_extend=200, search_query=False):
         found = []
@@ -972,6 +955,7 @@ class TREFinder:
         for locus in loci:
             used_reads = set()
             clipped = defaultdict(dict)
+            clipped_counts = defaultdict(list)
             alns = []
             # add this check in case alt chromosomes are included
             check_span = max(0, locus[1] - split_neighbour_size), min(locus[2] + split_neighbour_size, bam.get_reference_length(locus[0]))
@@ -992,14 +976,10 @@ class TREFinder:
                     check_end = None
                     start_olap = False
                     end_olap = False
-                    start_olap_size = 1000000
-                    end_olap_size = 1000000
                     if aln.reference_start >= locus[1] - split_neighbour_size and aln.reference_start <= locus[2] + split_neighbour_size:
                         start_olap = True
-                        start_olap_size = abs(aln.reference_start - (locus[1] + locus[2])/2)
                     if aln.reference_end >= locus[1] - split_neighbour_size and aln.reference_end <= locus[2] + split_neighbour_size:
                         end_olap = True
-                        end_olap_size = abs(aln.reference_end - (locus[1] + locus[2])/2)
                     if start_olap and not end_olap:
                         check_end = 'start'
                     elif end_olap and not start_olap:
@@ -1010,10 +990,16 @@ class TREFinder:
                         clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end, use_sa=True)
                     if clipped_end is not None:
                         clipped[aln.query_name][clipped_end] = (aln, partner_start)
-            
+                        clipped_counts[aln.query_name].append(clipped_end)
+
             # clipped alignment
             remove = set()
             for read in clipped.keys():
+                '''
+                if (len(set(clipped_counts[read])) == 2 and len(clipped_counts[read]) > 2) or\
+                   (len(set(clipped_counts[read])) == 1 and len(clipped_counts[read]) > 1):
+                    #continue
+                '''
                 if len(clipped[read].keys()) == 2:
                     aln1 = clipped[read]['end'][0]
                     aln2 = clipped[read]['start'][0]
@@ -1090,6 +1076,9 @@ class TREFinder:
             for aln in alns:
                 if aln.query_name in used_reads:
                     continue
+
+                if aln.query_name in clipped:
+                    continue
                 if aln.reference_start <= locus[1] - single_neighbour_size and\
                    aln.reference_end >= locus[2] + single_neighbour_size:
                     # don't consider alignment if it's deemed split at locus
@@ -1119,7 +1108,7 @@ class TREFinder:
                         used_reads.add(aln.query_name)
                     else:
                         generic.add(header)
-                else:
+                elif not aln.query_name in clipped:
                     if (aln.reference_start >= locus[1] and aln.reference_start <= locus[2]) or (aln.reference_end >= locus[1] and aln.reference_end <= locus[2]):
                         skipped_reads[(locus[0], str(locus[1]), str(locus[2]))][aln.query_name] = 'skipped (not_spanning)'
                         if self.debug:
@@ -1128,11 +1117,9 @@ class TREFinder:
         if missed_clipped:
             rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
             rescued_reads = defaultdict(set)
-            #rescued_reads = set()
             for read, clipped_end, qstart, qend, tstart, tend, seq, locus in rescued:
                 if read in used_reads:
                     continue
-                #rescued_reads.add(read)
                 rescued_reads[locus].add(read)
                 clipped = all_clipped[locus]
                 aln = clipped[read][list(clipped[read].keys())[0]][0]
@@ -1151,10 +1138,10 @@ class TREFinder:
 
             # unpaired clipped reads not rescued
             for locus, clipped_end, read, qstart, qend, tpos, seq in missed_clipped:
-                if read in used_reads:
-                    continue
                 clipped = all_clipped[locus]
-                if (locus in rescued_reads and read in rescued_reads[locus]) or not read in clipped:
+                if read in used_reads or not read in clipped:
+                    continue
+                if locus in rescued_reads and read in rescued_reads[locus]:
                     continue
                 aln = clipped[read][list(clipped[read].keys())[0]][0]
                 (tstart, tend) = (locus[1], tpos) if clipped_end == 'start' else (tpos, locus[2])
