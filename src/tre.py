@@ -984,10 +984,10 @@ class TREFinder:
                         check_end = 'start'
                     elif end_olap and not start_olap:
                         check_end = 'end'
-                    
+                   
                     clipped_end = None
                     if check_end is not None:
-                        clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=10000, check_end=check_end, use_sa=True)
+                        clipped_end, partner_start = INSFinder.is_split_aln_potential_ins(aln, min_split_size=400, closeness_to_end=1000, check_end=check_end, use_sa=True)
                     if clipped_end is not None:
                         clipped[aln.query_name][clipped_end] = (aln, partner_start)
                         clipped_counts[aln.query_name].append(clipped_end)
@@ -995,11 +995,9 @@ class TREFinder:
             # clipped alignment
             remove = set()
             for read in clipped.keys():
-                '''
                 if (len(set(clipped_counts[read])) == 2 and len(clipped_counts[read]) > 2) or\
                    (len(set(clipped_counts[read])) == 1 and len(clipped_counts[read]) > 1):
-                    #continue
-                '''
+                    continue
                 if len(clipped[read].keys()) == 2:
                     aln1 = clipped[read]['end'][0]
                     aln2 = clipped[read]['start'][0]
