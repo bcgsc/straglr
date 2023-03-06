@@ -332,12 +332,11 @@ class INSFinder:
                 i, j = -1, 0
 
             if aln.cigartuples[i][0] >= 4 and aln.cigartuples[i][0] <=5 and\
-                aln.cigartuples[i][1] >= min_split_size:
+                aln.cigartuples[i][1] >= min_split_size and\
+                aln.cigartuples[j][1] <= closeness_to_end:
                 if not check_end:
-                    if not (aln.cigartuples[j][0] >= 4 and aln.cigartuples[j][0] <=5 and\
-                            aln.cigartuples[j][1] >= min_split_size) and\
-                        aln.cigartuples[j][1] <= closeness_to_end:
-                            return True
+                    if not (aln.cigartuples[j][0] >= 4 and aln.cigartuples[j][0] <=5 and aln.cigartuples[j][1] >= min_split_size):
+                        return True
                 else:
                     return True
                 return False
@@ -351,7 +350,7 @@ class INSFinder:
         elif (check_end is None or check_end == 'end') and is_clipped('end'):
             clipped_end = 'end'
             partner_start = aln.reference_end
-
+    
         return clipped_end, partner_start
 
     @classmethod
