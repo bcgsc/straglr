@@ -73,12 +73,18 @@ class Variant:
                 biggest_partial_size = partials_sorted[0][3]
 
             bigger_alleles = [a for a in variant[6] if a > biggest_partial_size]
-
             if bigger_alleles:
-                # only 1 allele bigger than biggest partial, assign allele to all partials
-                if len(bigger_alleles) == 1:
-                    for p in partials:
-                        p[-1] = bigger_alleles[0]
+                alleles_sorted = sorted(variant[6], reverse=True)
+
+                for p in partials_sorted:
+                    size = p[4] if report_in_size else p[3]
+                    for i in range(len(alleles_sorted)-1):
+                        allele_assigned = None
+                        if size > alleles_sorted[i+1]:
+                            allele_assigned = alleles_sorted[i]
+                            break
+                        if allele_assigned is not None:
+                            p[-1] = allele_assigned
 
             else:
                 if variant[6]:
