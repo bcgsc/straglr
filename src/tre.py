@@ -757,7 +757,7 @@ class TREFinder:
                 #print('ff {} {} {} {}'.format(read, locus, size, rpos))
 
                 if not read in alleles[locus]:
-                    alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]), strands[read])
+                    alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]), strands[read], 'full')
 
         return self.alleles_to_variants(alleles)
 
