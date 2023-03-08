@@ -19,7 +19,7 @@ class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
                  max_num_clusters=3, min_cluster_size=2,
-                 genotype_in_size=False, trf_args='2 5 5 80 10 10 500 -d -h', debug=False):
+                 genotype_in_size=False, trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
         trf_path = spawn.find_executable("trf")
@@ -56,6 +56,9 @@ class TREFinder:
 
         # True when running in genotyping mode - strictly genotyping within given coordinates
         self.strict = False
+
+        # include partial detection in genotyping
+        self.include_partials = include_partials
 
         self.debug = debug
         self.remove_tmps = True if not self.debug else False
@@ -318,8 +321,9 @@ class TREFinder:
 
                 break
 
+        force_target_match = True
         # reference and query(flanking) may not have the repeat long enough for trf to detect
-        if not pattern_matched and filtered_patterns['i'] and force_target_match:
+        if not pattern_matched and filtered_patterns['i']:
             # if target patterns don't match, but there is, just use longest one
             if filtered_results['t']:
                 tpats = [r for r in filtered_results['t'] if int(r[0]) <= target_flank and int(r[1]) >= target_flank]
@@ -1135,23 +1139,24 @@ class TREFinder:
                     generic.add(header) 
 
             # unpaired clipped reads not rescued
-            for locus, clipped_end, read, qstart, qend, tpos, seq in missed_clipped:
-                clipped = all_clipped[locus]
-                if read in used_reads or not read in clipped:
-                    continue
-                if locus in rescued_reads and read in rescued_reads[locus]:
-                    continue
-                aln = clipped[read][list(clipped[read].keys())[0]][0]
-                (tstart, tend) = (locus[1], tpos) if clipped_end == 'start' else (tpos, locus[2])
-                header, fa_entry = self.create_trf_fasta(locus[:3], read, tstart, tend, qstart, seq, aln.infer_read_length(), partial=True)
-                patterns[header] = locus[-1]
-                repeat_seqs[header] = seq
+            if self.include_partials:
+                for locus, clipped_end, read, qstart, qend, tpos, seq in missed_clipped:
+                    clipped = all_clipped[locus]
+                    if read in used_reads or not read in clipped:
+                        continue
+                    if locus in rescued_reads and read in rescued_reads[locus]:
+                        continue
+                    aln = clipped[read][list(clipped[read].keys())[0]][0]
+                    (tstart, tend) = (locus[1], tpos) if clipped_end == 'start' else (tpos, locus[2])
+                    header, fa_entry = self.create_trf_fasta(locus[:3], read, tstart, tend, qstart, seq, aln.infer_read_length(), partial=True)
+                    patterns[header] = locus[-1]
+                    repeat_seqs[header] = seq
 
-                if not '*' in locus[-1]:
-                    trf_input += fa_entry
-                    used_reads.add(read)
-                else:
-                    generic.add(header)
+                    if not '*' in locus[-1]:
+                        trf_input += fa_entry
+                        used_reads.add(read)
+                    else:
+                        generic.add(header)
 
         variants = []
         if trf_input:
