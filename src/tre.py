@@ -758,10 +758,11 @@ class TREFinder:
                 size = len(matched_seq)
                 if strands[read] == '-':
                     rpos = len(read_seq) - rpos - size + 1
-                #print('ff {} {} {} {}'.format(read, locus, size, rpos))
+                if self.debug:
+                    print('passed {} {} {} {} {} {} {}'.format(read, locus, size, rpos, strands[read], len(read_seq), cols[-1]))
 
                 if not read in alleles[locus]:
-                    alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]), strands[read], 'full')
+                    alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]), strands[read], cols[-1])
 
         return self.alleles_to_variants(alleles)
 
