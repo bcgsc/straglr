@@ -1332,7 +1332,8 @@ class TREFinder:
     
                 reads_sorted = []
                 for allele in gt_alleles:
-                    reads_sorted.extend(sorted([r for r in variant[3] if r[-1] == allele], key=itemgetter(4), reverse=True))
+                    reads_sorted.extend(sorted([r for r in variant[3] if r[-1] == allele and r[-2] == 'full'], key=itemgetter(4), reverse=True))
+                    reads_sorted.extend(sorted([r for r in variant[3] if r[-1] == allele and r[-2] == 'partial'], key=itemgetter(4), reverse=True))
 
                 # read with size but failed clustering
                 reads_sorted.extend(sorted([r for r in variant[3] if r[-1] not in variant[6] and not 'failed' in r[-2] and not 'skipped' in r[-2] and type(r[4]) is not str], key=itemgetter(4), reverse=True))
