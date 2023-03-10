@@ -47,3 +47,10 @@ v1.4.0
 - added `--include_alt_chroms` to include ATL chromosomes in genome scan; added code to ensure chromosome boundaries are not violated
 - get rid of `--working_directory`, all temporary files will be found in `$TMPDIR` (or location specified by `--tmpdir`) if `--debug` is turned on
 
+v1.4.1
+- detection and reporting of partial repeats in genotyping now an option (`--include_partials`)
+- bugfix: forgot to add read status to output vector from regex (not TRF) examination of repeats
+- bugfix: assign partials to allele if size is between maximum and minimum read sizes, do not assign if size cannot be placed
+- changed `closeness_to_end` from 10 to 1kb for the "unclipped" end of clipped alignments
+- always go ahead to genotyping phase even if repeat in insertion cannot be matched against locus in reference genome (behaviour before `1.4.0`)
+- skip read if it has multiple clipped alignments to same end
