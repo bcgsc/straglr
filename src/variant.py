@@ -75,14 +75,28 @@ class Variant:
             bigger_alleles = [a for a in variant[6] if a > biggest_partial_size]
             if bigger_alleles:
                 alleles_sorted = sorted(variant[6], reverse=True)
+                max_sizes = []
+                min_sizes = []
+                i = 4 if report_in_size else 3
+                for allele in alleles_sorted:
+                    allele_sizes = [a[i] for a in variant[3] if a[-1] == allele]
+                    max_sizes.append(max(allele_sizes))
+                    min_sizes.append(min(allele_sizes))
 
                 for p in partials_sorted:
+                    allele_assigned = None
                     size = p[4] if report_in_size else p[3]
                     for i in range(len(alleles_sorted)-1):
-                        allele_assigned = None
-                        if size > alleles_sorted[i+1]:
+                        if size > max_sizes[i+1]:
                             allele_assigned = alleles_sorted[i]
                             break
+                    if allele_assigned is not None:
+                        p[-1] = allele_assigned
+                    else:
+                        for i in range(len(alleles_sorted)):
+                            if size >= min_sizes[i]:
+                                allele_assigned = alleles_sorted[i]
+                                break
                         if allele_assigned is not None:
                             p[-1] = allele_assigned
 
