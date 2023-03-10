@@ -952,6 +952,7 @@ class TREFinder:
         all_clipped = {}
         missed_clipped = []
         skipped_reads = defaultdict(dict)
+        coverages = {}
 
         if self.strict:
             self.trf_flank_size = 80
@@ -963,6 +964,9 @@ class TREFinder:
             alns = []
             # add this check in case alt chromosomes are included
             check_span = max(0, locus[1] - split_neighbour_size), min(locus[2] + split_neighbour_size, bam.get_reference_length(locus[0]))
+            
+            locus_tuple = tuple(map(str, locus[:3])) 
+            reads_set = set()
             if check_span[0] > check_span[1]:
                 continue
             for aln in bam.fetch(locus[0], check_span[0], check_span[1]):
@@ -999,6 +1003,8 @@ class TREFinder:
             # clipped alignment
             remove = set()
             for read in clipped.keys():
+                reads_set.add(read)
+                
                 if (len(set(clipped_counts[read])) == 2 and len(clipped_counts[read]) > 2) or\
                    (len(set(clipped_counts[read])) == 1 and len(clipped_counts[read]) > 1):
                     continue
@@ -1081,12 +1087,15 @@ class TREFinder:
 
                 if aln.query_name in clipped:
                     continue
+                
                 if aln.reference_start <= locus[1] - single_neighbour_size and\
                    aln.reference_end >= locus[2] + single_neighbour_size:
                     # don't consider alignment if it's deemed split at locus
                     if aln.query_name in clipped:
                         continue
                     
+                    reads_set.add(aln.query_name)
+
                     gstart = locus[1] - self.trf_flank_size
                     if gstart <= aln.reference_start:
                         gstart = aln.reference_start - 1
@@ -1112,9 +1121,14 @@ class TREFinder:
                         generic.add(header)
                 elif not aln.query_name in clipped:
                     if (aln.reference_start >= locus[1] and aln.reference_start <= locus[2]) or (aln.reference_end >= locus[1] and aln.reference_end <= locus[2]):
+                        reads_set.add(aln.query_name)
+                        
                         skipped_reads[(locus[0], str(locus[1]), str(locus[2]))][aln.query_name] = 'skipped (not_spanning)'
                         if self.debug:
                             print('not_spanning', locus, aln.query_name, aln.reference_start, aln.reference_end)
+            
+            # keep coverages
+            coverages[locus_tuple] = len(reads_set)
 
         if missed_clipped:
             rescued = self.rescue_missed_clipped(missed_clipped, genome_fasta)
@@ -1185,6 +1199,7 @@ class TREFinder:
 
         for variant in variants:
             self.add_reads(variant, skipped_reads)
+            self.add_coverage(variant, coverages)
             # genotype
             Variant.genotype(variant, report_in_size=self.genotype_in_size)
             Variant.summarize_genotype(variant)
@@ -1203,9 +1218,11 @@ class TREFinder:
                     allele = [read] + ['NA'] * 7 + [label]
                     variant[3].append(allele)
 
-            # udpate coverage
-            variant[5] = len(variant[3])
-
+    def add_coverage(self, variant, coverages):
+        locus = tuple(variant[:3])
+        if locus in coverages:
+            variant[5] = coverages[locus]
+    
     def examine_ins(self, ins_list, min_expansion=0):
         def filter_tres(ins_list, tre_events):
             for ins in ins_list:
