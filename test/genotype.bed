@@ -1,2 +1,2 @@
 #chrom	start	end	repeat_unit	allele1:size	allele1:copy_number	allele1:support	allele2:size	allele2:copy_number	allele2:support
-chr22	45795354	45795424	ATTCT	1928.8	385.8	16	-	-	-
+chr22	45795354	45795424	ATTCT	1928.7	385.7	12	-	-	-
