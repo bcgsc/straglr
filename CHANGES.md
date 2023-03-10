@@ -54,3 +54,4 @@ v1.4.1
 - changed `closeness_to_end` from 10 to 1kb for the "unclipped" end of clipped alignments
 - always go ahead to genotyping phase even if repeat in insertion cannot be matched against locus in reference genome (behaviour before `1.4.0`)
 - skip read if it has multiple clipped alignments to same end
+- fixed `test.bam` (duplicate records for some reads) and updated test results
