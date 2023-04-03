@@ -1286,7 +1286,8 @@ class TREFinder:
             random.shuffle(loci)
             batches = list(split_tasks(loci, self.nprocs))
             batched_results = parallel_process(self.get_alleles, batches, self.nprocs)
-            tre_variants = combine_batch_results(batched_results, type(batched_results[0]))
+            if batched_results:
+                tre_variants = combine_batch_results(batched_results, type(batched_results[0]))
         else:
             tre_variants = self.get_alleles(loci)
 
