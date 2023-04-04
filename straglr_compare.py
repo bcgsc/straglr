@@ -8,6 +8,9 @@ from operator import itemgetter
 import sys
 import os
 import re
+import warnings
+# turn off RuntimeWarning from stats.ttest_ind()
+warnings.filterwarnings('ignore')
 
 def create_straglr_bed(alleles):
     bed_str = ''
@@ -35,9 +38,9 @@ def create_simple_bed(loci):
     for locus in loci:
         bed_str += '{}\n'.format('\t'.join(list(map(str, locus[:3]))))
 
-    return BedTool(bed_str, from_string=True).sort().moveto('ss.bed')
+    return BedTool(bed_str, from_string=True).sort()
 
-def parse_straglr_tsv(tsv, use_size=True, skip_chroms=None, no_strand_version=False):
+def parse_straglr_tsv(tsv, use_size=True, skip_chroms=None, old_version=False):
     alleles = {}
     with open(tsv, 'r') as ff:
         for line in ff:
@@ -45,6 +48,9 @@ def parse_straglr_tsv(tsv, use_size=True, skip_chroms=None, no_strand_version=Fa
                 continue
 
             cols = line.rstrip().split('\t')
+            if not old_version and cols[-1] != 'full':
+                continue
+            
             if skip_chroms is not None and cols[0] in skip_chroms:
                 continue
             locus = cols[:4]
@@ -58,15 +64,15 @@ def parse_straglr_tsv(tsv, use_size=True, skip_chroms=None, no_strand_version=Fa
             locus = tuple(locus)
             if not locus in alleles:
                 alleles[locus] = defaultdict(list)
-            allele = cols[-1]
-            if allele == '-':
+            allele = cols[-1] if old_version else cols[-2]
+            if allele == '-' or allele == 'NA':
                 continue
             if not use_size:
                 allele = '{:.1f}'.format(float(allele) / len(cols[3]))
             
-            size = cols[-4]
-            copy_num = cols[-5]
-            if no_strand_version:
+            size = cols[-5]
+            copy_num = cols[-6]
+            if old_version:
                 size = cols[-3]
                 copy_num = cols[-4]
             
@@ -81,8 +87,6 @@ def vs_each_control(test_bed, control_bed, pval_cutoff, min_expansion=100, min_s
     expanded_loci = {}
     new_loci = []
     common_loci = []
-    test_bed.saveas('aa.bed')
-    control_bed.saveas('bb.bed')
     for cols in test_bed.intersect(control_bed, loj=True, wao=True, f=0.9):
         if cols[-2] == '.':
             new_loci.append(cols)
@@ -327,7 +331,7 @@ def parse_args():
     parser.add_argument("--gtf", type=str, help="gtf")
     parser.add_argument("--promoters", type=str, help="promoters bed file")
     parser.add_argument("--enhancers", type=str, help="enhancers bed file")
-    parser.add_argument("--no_strand_version", action='store_true', help="no strand version of Straglr used")
+    parser.add_argument("--old_version", action='store_true', help="old version of Straglr used")
     args = parser.parse_args()
     return args
 
@@ -335,30 +339,22 @@ def main():
     args = parse_args()
 
     control_results = []
-    #control_bams = []
     if len(args.controls) == 1 and os.path.exists(args.controls[0]) and os.path.splitext(args.controls[0])[1] != '.tsv':
         with open(args.controls[0], 'r') as ff:
             control_results = [f.rstrip() for f in ff.readlines() if os.path.exists(f.rstrip()) and os.path.splitext(f.rstrip())[1] == '.tsv']
     else:
         control_results = [c for c in args.controls if os.path.exists(c) and os.path.splitext(c)[1] == '.tsv']
-        '''
-        print(os.path.splitext(args.controls[0])[1])
-        if os.path.splitext(args.controls[0])[1] == '.tsv':
-            control_results = args.controls
-        elif os.path.splitext(args.controls[0])[1] == '.bam':
-            control_bams = args.controls
-        '''
 
     if not control_results:
         sys.exit()
 
     expanded_loci = {}
-    test_bed = parse_straglr_tsv(args.test, use_size=args.use_size, skip_chroms=args.skip_chroms, no_strand_version=args.no_strand_version)
+    test_bed = parse_straglr_tsv(args.test, use_size=args.use_size, skip_chroms=args.skip_chroms, old_version=args.old_version)
     if control_results:
         vs_controls = []
         for control_result in control_results:
-            print('comparing', control_result)
-            control_bed = parse_straglr_tsv(control_result, use_size=args.use_size, no_strand_version=args.no_strand_version)
+            print('comparing {} vs {}'.format(args.test, control_result))
+            control_bed = parse_straglr_tsv(control_result, use_size=args.use_size, old_version=args.old_version)
             vs_controls.append(vs_each_control(test_bed, control_bed, args.pval_cutoff, min_support=args.min_support, label=control_result))
     
         if vs_controls:
