@@ -83,7 +83,7 @@ def parse_straglr_tsv(tsv, use_size=True, skip_chroms=None, old_version=False):
 
     return create_straglr_bed(alleles)
 
-def vs_each_control(test_bed, control_bed, pval_cutoff, min_expansion=100, min_support=0, label=None):
+def vs_each_control(test_bed, control_bed, pval_cutoff, min_expansion=0, min_support=0, label=None):
     expanded_loci = {}
     new_loci = []
     common_loci = []
@@ -323,11 +323,11 @@ def parse_args():
     parser.add_argument("test", type=str, help="Straglr results of test_sample")
     parser.add_argument("controls", type=str, nargs='+', help="controls")
     parser.add_argument("output", type=str, help="output")
-    parser.add_argument("--use_size", action='store_true', help="use size")
-    parser.add_argument("--min_expansion", type=int, default=0, help="minimum expansion")
-    parser.add_argument("--min_support", type=int, default=0, help="minimum support")
+    parser.add_argument("--use_copy_number", action='store_true', help="use copy number")
+    parser.add_argument("--min_expansion", type=int, default=100, help="minimum expansion. Default:100")
+    parser.add_argument("--min_support", type=int, default=4, help="minimum support. Default:4")
     parser.add_argument("--skip_chroms", type=str, nargs='+', help="skip chromosomes")
-    parser.add_argument("--pval_cutoff", type=float, default=0.001,  help="p-value cutoff for testing T-test hypothesis")
+    parser.add_argument("--pval_cutoff", type=float, default=0.001,  help="p-value cutoff for testing T-test hypothesis. Default:0.001")
     parser.add_argument("--gtf", type=str, help="gtf")
     parser.add_argument("--promoters", type=str, help="promoters bed file")
     parser.add_argument("--enhancers", type=str, help="enhancers bed file")
@@ -349,13 +349,14 @@ def main():
         sys.exit()
 
     expanded_loci = {}
-    test_bed = parse_straglr_tsv(args.test, use_size=args.use_size, skip_chroms=args.skip_chroms, old_version=args.old_version)
+    use_size = not args.use_copy_number
+    test_bed = parse_straglr_tsv(args.test, use_size=use_size, skip_chroms=args.skip_chroms, old_version=args.old_version)
     if control_results:
         vs_controls = []
         for control_result in control_results:
             print('comparing {} vs {}'.format(args.test, control_result))
-            control_bed = parse_straglr_tsv(control_result, use_size=args.use_size, old_version=args.old_version)
-            vs_controls.append(vs_each_control(test_bed, control_bed, args.pval_cutoff, min_support=args.min_support, label=control_result))
+            control_bed = parse_straglr_tsv(control_result, use_size=use_size, old_version=args.old_version)
+            vs_controls.append(vs_each_control(test_bed, control_bed, args.pval_cutoff, min_expansion=args.min_expansion, min_support=args.min_support, label=control_result))
     
         if vs_controls:
             expanded_loci = vs_all_controls(vs_controls)
