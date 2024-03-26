@@ -4,6 +4,14 @@ import pysam
 from collections import defaultdict
 import re
 
+from dataclasses import dataclass
+
+@dataclass
+class TsvRead:
+    start: int
+    size: int
+    strand: str
+
 def parse_tsv(tsv, loci=None):
     support = defaultdict(dict)
     with open(tsv, 'r') as ff:
@@ -20,7 +28,7 @@ def parse_tsv(tsv, loci=None):
 
             if status != 'full' or (loci is not None and locus not in loci):
                 continue
-            support[locus][read_name] = int(read_start), int(size), strand
+            support[locus][read_name] = TsvRead(int(read_start), int(size), strand)
 
     return support
 
@@ -32,20 +40,21 @@ def extract_repeats(bam, support, flank_size=10):
         for aln in bam.fetch(chrom, int(start), int(end)):
             if aln.query_name in support[locus] and not aln.query_name in seqs:
                 rlen = aln.infer_read_length()
-                if support[locus][aln.query_name][2] == '+':
-                    start, end = support[locus][aln.query_name][0], support[locus][aln.query_name][0] + support[locus][aln.query_name][1]
+                current_read = support[locus][aln.query_name]
+                if current_read.strand == '+':
+                    start, end = current_read.start, current_read.start + current_read.size
                 else:
-                    start = rlen - (support[locus][aln.query_name][0] + support[locus][aln.query_name][1])
-                    end = start + support[locus][aln.query_name][1]
+                    start = rlen - (current_read.start + current_read.size)
+                    end = start + current_read.size
 
                 try:
                     repeat_seq = aln.query_sequence[start:end].lower()
-                    left = max(0, start - flank_size), start
-                    right = end, min(end + flank_size, rlen)
-                    left_seq = aln.query_sequence[left[0]:left[1]].upper()
-                    right_seq = aln.query_sequence[right[0]:right[1]].upper()
+                    left = slice(max(0, start - flank_size), start)
+                    right = slice(end, min(end + flank_size, rlen))
+                    left_seq = aln.query_sequence[left].upper()
+                    right_seq = aln.query_sequence[right].upper()
                     seq = left_seq + repeat_seq + right_seq
-                    seqs[locus].append((aln.query_name, support[locus][aln.query_name][1], seq))
+                    seqs[locus].append((aln.query_name, current_read.size, seq))
                 except:
                     print('problem extracting repeat from {}'.format(aln.query_name))
 
