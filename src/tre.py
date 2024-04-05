@@ -861,7 +861,10 @@ class TREFinder:
         else:
             pstart = locus[2]
             pend = pstart + self.trf_flank_size
-        pseq = genome_fasta.fetch(locus[0], max(0, pstart), min(pend, genome_fasta.get_reference_length(locus[0])))
+        try:
+            pseq = genome_fasta.fetch(locus[0], max(0, pstart), min(pend, genome_fasta.get_reference_length(locus[0])))
+        except:
+            pseq = None
         return pstart, pend, pseq
 
     def parse_blastn(self, blastn_out):
@@ -897,7 +900,8 @@ class TREFinder:
             loci[read] = locus
 
             pstart, pend, pseq = self.get_probe(clipped_end, locus, genome_fasta)
-            query_fa += '>{}:{}:{}:{}:{}\n{}\n'.format(read, clipped_end, pstart, pend, len(pseq), pseq)
+            if pseq is not None and pseq:
+                query_fa += '>{}:{}:{}:{}:{}\n{}\n'.format(read, clipped_end, pstart, pend, len(pseq), pseq)
 
         blastn_out = self.run_blastn_for_missed_clipped(query_fa, target_fa, 6)
         if os.path.exists(blastn_out):
