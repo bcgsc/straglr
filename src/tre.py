@@ -592,6 +592,33 @@ class TREFinder:
 
         return matches
 
+    def extract_refs_trf(self, trf_input):
+        results, motif_out_of_range = self.perform_trf(trf_input)
+
+        refs = {}
+        for seq in results.keys():
+            cols = seq.split(':')[:-1]
+            data_motif = cols[3]
+            seq_len = int(cols[7])
+
+            if len(cols) < 7:
+                if self.debug:
+                    print('problematic seq id: {}'.format(seq))
+                continue
+            locus = tuple(cols[:3])
+
+            choices = []
+            for result in results[seq]:
+                repeat_len = result[1] - result[0] + 1
+                same_repeat = 1 if self.is_same_repeat((result[-2], data_motif)) else -1
+                motif_size_diff = abs(len(data_motif) - len(result[-2])) * -1
+                choices.append((result[-2], result[-1], repeat_len, same_repeat, motif_size_diff))
+            choices_sorted = sorted(choices, key=itemgetter(2,3,4), reverse=True)
+            if choices_sorted:
+                refs[locus] = choices_sorted[0][:2]
+
+        return refs
+
     def extract_alleles_trf(self, trf_input, repeat_seqs, flank, clipped, bam, strands, patterns, reads_fasta, too_far_from_read_end=200):
         results, motif_out_of_range = self.perform_trf(trf_input)
         same_pats = self.find_similar_long_patterns_gt(results, patterns)
@@ -708,9 +735,9 @@ class TREFinder:
                             rpos = read_len - rpos - size + 1
 
                         if genome_start < genome_end:
-                            alleles[tuple(locus)][read] = (rpos, pats, size, genome_start, genome_end, strands[read], label)
+                            alleles[tuple(locus)][read] = (rpos, pats, size, genome_start, genome_end, strands[read], repeat_seq, label)
                         else:
-                            alleles[tuple(locus)][read] = (rpos, pats, size, int(gstart), int(gend), strands[read], label)
+                            alleles[tuple(locus)][read] = (rpos, pats, size, int(gstart), int(gend), strands[read], repeat_seq, label)
 
             else:
                 if self.debug:
@@ -763,7 +790,7 @@ class TREFinder:
                     print('passed {} {} {} {} {} {} {}'.format(read, locus, size, rpos, strands[read], len(read_seq), cols[-1]))
 
                 if not read in alleles[locus]:
-                    alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]), strands[read], cols[-1])
+                    alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]), strands[read], repeat_seq, cols[-1])
 
         return self.alleles_to_variants(alleles)
     
@@ -786,7 +813,8 @@ class TREFinder:
                                    alleles[locus][read][3], # genome_start
                                    alleles[locus][read][4], # genome_end
                                    alleles[locus][read][5], # strand
-                                   alleles[locus][read][6], # label
+                                   alleles[locus][read][6], # repeat_seq
+                                   alleles[locus][read][-1], # label
                                    ])
 
                 # update pattern counts
@@ -808,7 +836,6 @@ class TREFinder:
                     break
             variant[4] = (sorted(top_pats, key=len)[0])
             for allele in variant[3]:
-                #allele[2] = variant[4]
                 if allele[-1] != 'full' and allele[-1] != 'partial':
                     allele[3] = 'NA'
                     continue
@@ -817,8 +844,7 @@ class TREFinder:
                 # adjust read motif if it is the same as consensus
                 if allele[2] != variant[4] and self.is_same_repeat((allele[2], variant[4])):
                     allele[2] = variant[4]
-                    #print('aa', allele[2], variant[4], self.is_same_repeat((allele[2], variant[4])))
-
+                #print('aa', allele)
             variants.append(variant)
 
         return variants
@@ -1208,12 +1234,25 @@ class TREFinder:
         # set genotyping configuration (class variable)
         Variant.set_genotype_config(min_reads=self.min_cluster_size, max_num_clusters=self.max_num_clusters)
 
+        # for getting ref alleles
+        trf_input = ''
         for variant in variants:
             self.add_reads(variant, skipped_reads)
             self.add_coverage(variant, coverages)
             # genotype
             Variant.genotype(variant, report_in_size=self.genotype_in_size)
             Variant.summarize_genotype(variant)
+
+            ref_seq = genome_fasta.fetch(variant[0], int(variant[1]), int(variant[2]))
+            header, fa_entry = self.create_trf_fasta(variant[:3] + [variant[4]], '', 0, 0, 0, ref_seq, 0)
+            trf_input += fa_entry
+        if trf_input:
+            refs = self.extract_refs_trf(trf_input)
+            for variant in variants:
+                locus = tuple(variant[:3])
+                if locus in refs:
+                    print('yy', refs[locus])
+                    variant.extend(list(refs[locus]))
 
         if self.remove_tmps:
             self.cleanup()
@@ -1412,8 +1451,7 @@ class TREFinder:
         with open(out_file, 'w') as out:
             out.write('{}\n'.format(VCF.show_meta(sample)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
-                ref_allele = genome_fasta.fetch(variant[0], int(variant[1]), int(variant[2])).upper()
-                out.write('{}\n'.format(Variant.to_vcf(variant, ref_allele)))
+                out.write('{}\n'.format(Variant.to_vcf(variant)))
 
     def cleanup(self):
         if self.tmp_files:

@@ -14,6 +14,8 @@ class Variant:
     5: coverage
     6: genotypes
     7: genotype_summary
+    8: ref_motif
+    9: ref_seq
     """
     tsv_headers = ['chrom',
                    'start',
@@ -179,12 +181,13 @@ class Variant:
         return '/'.join(am)
 
     @classmethod
-    def to_vcf(cls, variant, ref_allele, vid='.'):
+    def to_vcf(cls, variant, vid='.'):
         gt = cls.get_genotype(variant)
+        print('vv', variant)
         cols = [variant[0],
                 variant[1],
                 vid,
-                ref_allele]
+                variant[9]]
         alt_motifs = cls.extract_alt_motifs(variant, gt)
         cols.append(VCF.create_variant_format(variant))
         cols.append(VCF.extract_variant_gt(variant, gt, alt_motifs))
@@ -204,7 +207,7 @@ class Variant:
                     alleles.append((allele, allele))
             
             for allele, size in sorted(alleles, key=itemgetter(1), reverse=True):
-                reads = [a for a in variant[3] if a[9] == allele and a[4] - ref_size >= min_expansion]
+                reads = [a for a in variant[3] if a[-1] == allele and a[4] - ref_size >= min_expansion]
                 n += len(reads)
 
             if n >= min_reads:
@@ -246,8 +249,9 @@ class Allele:
     5: genome_start
     6: genome_end
     7: strand
-    8: label
-    9: genotype
+    8: repeat_seq
+    9: label
+    10: genotype
     """
     tsv_headers = ['read_name',
                    'actual_repeat',
@@ -274,7 +278,7 @@ class Allele:
                         cols[4],
                         cols[1],
                         cols[7],
-                        cols[9],
-                        cols[8]
+                        cols[-1],
+                        cols[-2]
                         ]
         return list(map(str, cols_ordered))
