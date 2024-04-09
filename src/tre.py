@@ -14,6 +14,7 @@ import math
 import random
 from pybedtools import BedTool
 from datetime import datetime
+from .vcf import VCF
 
 class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
@@ -765,7 +766,7 @@ class TREFinder:
                     alleles[tuple(locus)][read] = (rpos, pats, size, int(locus[1]), int(locus[2]), strands[read], cols[-1])
 
         return self.alleles_to_variants(alleles)
-
+    
     def alleles_to_variants(self, alleles):
         variants = []
         for locus in alleles.keys():
@@ -812,6 +813,11 @@ class TREFinder:
                     allele[3] = 'NA'
                     continue
                 allele[3] = round(float(allele[4]) / len(variant[4]), 1)
+                
+                # adjust read motif if it is the same as consensus
+                if allele[2] != variant[4] and self.is_same_repeat((allele[2], variant[4])):
+                    allele[2] = variant[4]
+                    #print('aa', allele[2], variant[4], self.is_same_repeat((allele[2], variant[4])))
 
             variants.append(variant)
 
@@ -1400,6 +1406,14 @@ class TREFinder:
                         cols.extend(['-'] * 3)
 
                 out.write('{}\n'.format('\t'.join(map(str, cols))))
+
+    def output_vcf(self, variants, out_file, sample='.'):
+        genome_fasta = pysam.Fastafile(self.genome_fasta)
+        with open(out_file, 'w') as out:
+            out.write('{}\n'.format(VCF.show_meta(sample)))
+            for variant in sorted(variants, key=itemgetter(0, 1, 2)):
+                ref_allele = genome_fasta.fetch(variant[0], int(variant[1]), int(variant[2])).upper()
+                out.write('{}\n'.format(Variant.to_vcf(variant, ref_allele)))
 
     def cleanup(self):
         if self.tmp_files:

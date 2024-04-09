@@ -2,6 +2,7 @@ import numpy as np
 from collections import Counter
 from .cluster import Cluster
 from operator import itemgetter
+from .vcf import VCF
 
 class Variant:
     """
@@ -146,6 +147,48 @@ class Variant:
                 variant[7],
                 ]
         return list(map(str, cols))
+    
+    @classmethod
+    def extract_alt_motifs(cls, variant, gt):
+        alts = {}
+        consensus = variant[4]
+    
+        for allele in variant[3]:
+            if allele[-1] == 'NA' or 'failed' in allele[-2]:
+                continue
+            motif = allele[2]
+            if motif != consensus:
+                if not motif in alts:
+                    alts[motif] = {}
+                    for i in gt:
+                        alts[motif][i[0]] = 0
+                alts[motif][allele[-1]] += 1
+
+        motifs = []
+        dps = []
+        for motif in alts:
+            motifs.append(motif)
+            depths = []
+            for a in gt:
+                if alts[motif][a[0]] > 0:
+                    depths.append('{}({})'.format(a[0], alts[motif][a[0]]))
+            dps.append(','.join(depths))
+        am = '/'.join(motifs) if motifs else '.'
+        amad = '/'.join(dps) if dps else '.'
+        return am, amad
+
+    @classmethod
+    def to_vcf(cls, variant, ref_allele, vid='.'):
+        gt = cls.get_genotype(variant)
+        cols = [variant[0],
+                variant[1],
+                vid,
+                ref_allele]
+        alt_motifs = cls.extract_alt_motifs(variant, gt)
+        cols.append(VCF.create_variant_format(variant))
+        cols.append(VCF.extract_variant_gt(variant, gt, alt_motifs))
+        #print('bb', cls.get_genotype(variant))
+        return '\t'.join(list(map(str, cols)))
 
     @classmethod
     def above_min_expansion(cls, variant, min_expansion, min_reads):
@@ -181,7 +224,6 @@ class Variant:
 
     @classmethod
     def summarize_alleles(cls, alleles):
-
         reads = []
         sizes = []
         cns = []

@@ -88,6 +88,7 @@ def main():
     # output both bed and tsv
     tre_finder.output_bed(variants, '{}.bed'.format(args.out_prefix))
     tre_finder.output_tsv(variants, '{}.tsv'.format(args.out_prefix), cmd=' '.join(sys.argv))
+    tre_finder.output_vcf(variants, '{}.vcf'.format(args.out_prefix))
 
 if __name__ == '__main__':
     main()
