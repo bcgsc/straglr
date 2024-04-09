@@ -151,6 +151,8 @@ class Variant:
     @classmethod
     def extract_alt_motifs(cls, variant, gt):
         alts = {}
+        for g in gt:
+            alts[g[0]] = {}
         consensus = variant[4]
     
         for allele in variant[3]:
@@ -158,24 +160,23 @@ class Variant:
                 continue
             motif = allele[2]
             if motif != consensus:
-                if not motif in alts:
-                    alts[motif] = {}
-                    for i in gt:
-                        alts[motif][i[0]] = 0
-                alts[motif][allele[-1]] += 1
+                if not motif in alts[allele[-1]]:
+                    alts[allele[-1]][motif] = 0
+                alts[allele[-1]][motif] += 1
 
-        motifs = []
-        dps = []
-        for motif in alts:
-            motifs.append(motif)
-            depths = []
-            for a in gt:
-                if alts[motif][a[0]] > 0:
-                    depths.append('{}({})'.format(a[0], alts[motif][a[0]]))
-            dps.append(','.join(depths))
-        am = '/'.join(motifs) if motifs else '.'
-        amad = '/'.join(dps) if dps else '.'
-        return am, amad
+        am = []
+        for g in gt:
+            if alts[g[0]]:
+                counts = []
+                for motif, count in alts[g[0]].items():
+                    counts.append((motif, count))
+                motifs = []
+                for motif, count in sorted(counts, key=itemgetter(1,0), reverse=True):
+                    motifs.append('{}({})'.format(motif, count))
+                am.append(','.join(motifs))
+            else:
+                am.append('.')
+        return '/'.join(am)
 
     @classmethod
     def to_vcf(cls, variant, ref_allele, vid='.'):
@@ -187,7 +188,6 @@ class Variant:
         alt_motifs = cls.extract_alt_motifs(variant, gt)
         cols.append(VCF.create_variant_format(variant))
         cols.append(VCF.extract_variant_gt(variant, gt, alt_motifs))
-        #print('bb', cls.get_genotype(variant))
         return '\t'.join(list(map(str, cols)))
 
     @classmethod

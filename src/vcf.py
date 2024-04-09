@@ -1,5 +1,5 @@
 class VCF:
-    file_format = '4.1'
+    file_format = '4.2'
     header = 'CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'
     info = (
             ('END', 1, 'Integer', 'End position of repeat'), 
@@ -11,7 +11,6 @@ class VCF:
               ('AL', '.', 'String', 'Allelic length(s)'),
               ('AD', '.', 'String', 'Allelic depth(s)'),
               ('AM', '.', 'String', 'Alternate motif(s)'),
-              ('AMAD', '.', 'String', 'Alterate motif allelic depth(s)'),
              )
 
     @classmethod
@@ -75,8 +74,7 @@ class VCF:
         vals['AL'] = '/'.join([str(a[0]) for a in gt])
         vals['AD'] = '/'.join([str(a[1]) for a in gt])
 
-        vals['AM'] = alt_motifs[0]
-        vals['AMAD'] = alt_motifs[1]
+        vals['AM'] = alt_motifs
 
         return ':'.join([vals[field[0]] for field in cls.format])
 
