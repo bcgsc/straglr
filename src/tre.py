@@ -797,7 +797,7 @@ class TREFinder:
     def alleles_to_variants(self, alleles):
         variants = []
         for locus in alleles.keys():
-            variant = [locus[0], locus[1], locus[2], [], None, None, [], '-']
+            variant = [locus[0], int(locus[1]), int(locus[2]), [], None, None, [], '-']
 
             # check for minimum number of supporting reads
             if len(alleles[locus]) < self.min_support:
@@ -1243,13 +1243,13 @@ class TREFinder:
             Variant.genotype(variant, report_in_size=self.genotype_in_size)
             Variant.summarize_genotype(variant)
 
-            ref_seq = genome_fasta.fetch(variant[0], int(variant[1]), int(variant[2]))
+            ref_seq = genome_fasta.fetch(variant[0], variant[1], variant[2])
             header, fa_entry = self.create_trf_fasta(variant[:3] + [variant[4]], '', 0, 0, 0, ref_seq, 0)
             trf_input += fa_entry
         if trf_input:
             refs = self.extract_refs_trf(trf_input)
             for variant in variants:
-                locus = tuple(variant[:3])
+                locus = tuple(map(str, variant[:3]))
                 if locus in refs:
                     variant.extend(list(refs[locus]))
                 self.assign_alts(variant)
@@ -1292,7 +1292,7 @@ class TREFinder:
                     a[9] = gt
 
     def add_reads(self, variant, skipped_reads):
-        locus = tuple(variant[:3])
+        locus = tuple(map(str, variant[:3]))
         if locus in skipped_reads:
             used_reads = [a[0] for a in variant[3]]
             for read, label in skipped_reads[locus].items():
@@ -1301,7 +1301,7 @@ class TREFinder:
                     variant[3].append(allele)
 
     def add_coverage(self, variant, coverages):
-        locus = tuple(variant[:3])
+        locus = tuple(map(str, variant[:3]))
         if locus in coverages:
             variant[5] = coverages[locus]
     
