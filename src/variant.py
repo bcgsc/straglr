@@ -155,13 +155,13 @@ class Variant:
         alts = {}
         for g in gt:
             alts[g[0]] = {}
-        consensus = variant[4]
+        ref = variant[8]
     
         for allele in variant[3]:
             if allele[-1] == 'NA' or 'failed' in allele[-2]:
                 continue
             motif = allele[2]
-            if motif != consensus:
+            if motif != ref:
                 if not motif in alts[allele[-1]]:
                     alts[allele[-1]][motif] = 0
                 alts[allele[-1]][motif] += 1
