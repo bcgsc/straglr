@@ -972,7 +972,7 @@ class TREFinder:
         return rescued
 
     def get_alleles(self, loci, reads_fasta=[], closeness_to_end=50):
-        bam = pysam.Samfile(self.bam, 'rb')
+        bam = pysam.AlignmentFile(self.bam, reference_filename=self.genome_fasta)
         if self.reads_fasta:
             for fa in self.reads_fasta:
                 reads_fasta.append(pysam.Fastafile(fa))
