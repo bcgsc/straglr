@@ -202,14 +202,18 @@ class Variant:
     def to_vcf(cls, variant, vid='.'):
         gt = cls.get_genotype(variant)
         alts = cls.get_alts(variant)
+        qual = '.'
+        filter = '.'
         cols = [variant[0],
                 variant[1],
                 vid,
                 variant[9],
-                alts]
+                alts,
+                qual,
+                filter]
         alt_motifs = cls.extract_alt_motifs(variant, gt)
-        cols.append(VCF.create_variant_format(variant))
-        cols.append(VCF.extract_variant_gt(variant, gt, alt_motifs))
+        cols.append(VCF.extract_variant_info(variant))
+        cols.extend(VCF.extract_variant_gt(variant, gt, alt_motifs))
         return '\t'.join(list(map(str, cols)))
 
     @classmethod

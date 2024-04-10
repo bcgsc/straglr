@@ -51,23 +51,22 @@ class VCF:
         return '\n'.join(lines)
     
     @classmethod
-    def create_variant_format(cls, variant):
+    def extract_variant_info(cls, variant):
         pairs = []
 
         # 2 == chr, 4 == repeat
         for key, i in zip(cls.info, (2,4)):
             pairs.append('{}={}'.format(key[0], variant[i]))
 
-        format_str = ':'.join([f[0] for f in cls.format])
-        return '{} {}'.format(';'.join(pairs), format_str)
+        #format_str = ':'.join([f[0] for f in cls.format])
+        #return '{} {}'.format(';'.join(pairs), format_str)
+        return ';'.join(pairs)
 
     @classmethod
     def extract_variant_gt(cls, variant, gt, alt_motifs):
         cols = []
         vals = {}
-        for field in cls.format:
-            vals[field[0]] = '.'
-        
+
         # 5 = coverage
         gts = sorted(list(set([a[9] for a in variant[3] if a[9] is not None and a[-2] == 'full'])))
         if len(gts) == 1:
@@ -80,7 +79,12 @@ class VCF:
 
         vals['AM'] = alt_motifs
 
-        return ':'.join([vals[field[0]] for field in cls.format])
+        format = []
+        for fmt in cls.format:
+            if fmt[0] in vals:
+                format.append(fmt[0])
+
+        return [':'.join(format), ':'.join([vals[field[0]] for field in cls.format])]
 
 
         
