@@ -175,7 +175,7 @@ class Variant:
                 motifs = []
                 for motif, count in sorted(counts, key=itemgetter(1,0), reverse=True):
                     motifs.append('{}({})'.format(motif, count))
-                am.append(','.join(motifs))
+                am.append(';'.join(motifs))
             else:
                 am.append('.')
         return '/'.join(am)
@@ -201,6 +201,7 @@ class Variant:
     @classmethod
     def to_vcf(cls, variant, vid='.'):
         gt = cls.get_genotype(variant)
+        gt_sorted = sorted(gt, key=itemgetter(0))
         alts = cls.get_alts(variant)
         qual = '.'
         filter = '.'
@@ -211,9 +212,9 @@ class Variant:
                 alts,
                 qual,
                 filter]
-        alt_motifs = cls.extract_alt_motifs(variant, gt)
+        alt_motifs = cls.extract_alt_motifs(variant, gt_sorted)
         cols.append(VCF.extract_variant_info(variant))
-        cols.extend(VCF.extract_variant_gt(variant, gt, alt_motifs))
+        cols.extend(VCF.extract_variant_gt(variant, gt_sorted, alt_motifs))
         return '\t'.join(list(map(str, cols)))
 
     @classmethod
