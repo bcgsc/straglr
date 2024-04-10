@@ -3,7 +3,7 @@ class VCF:
     header = 'CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'
     info = (
             ('END', 1, 'Integer', 'End position of repeat'), 
-            ('MOTIF', 1, 'String', 'Motif')
+            ('MOTIF', 1, 'String', 'Reference motif')
             )
     format = (
               ('GT', 1, 'String', 'Genotype'),
@@ -54,8 +54,8 @@ class VCF:
     def extract_variant_info(cls, variant):
         pairs = []
 
-        # 2 == chr, 4 == repeat
-        for key, i in zip(cls.info, (2,4)):
+        # 2 == chr, 8 == repeat
+        for key, i in zip(cls.info, (2,8)):
             pairs.append('{}={}'.format(key[0], variant[i]))
 
         #format_str = ':'.join([f[0] for f in cls.format])
