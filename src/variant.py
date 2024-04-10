@@ -1,5 +1,5 @@
 import numpy as np
-from collections import Counter
+from collections import Counter, defaultdict
 from .cluster import Cluster
 from operator import itemgetter
 from .vcf import VCF
@@ -181,13 +181,32 @@ class Variant:
         return '/'.join(am)
 
     @classmethod
+    def get_alts(cls, variant):
+        choices = defaultdict(list)
+        for a in variant[3]:
+            if a[9] is None or a[-2] != 'full':
+                continue
+            if a[9] > 0:
+                choices[a[9]].append((a[0], a[8], abs(len(a[8]) - a[-1])))
+
+        alts = []
+        for gt in sorted(choices.keys()):
+            rep = sorted(choices[gt], key=itemgetter(2))[0]
+            alts.append(rep[1])
+        if alts:
+            return ','.join(alts)
+        else:
+            return '.'
+
+    @classmethod
     def to_vcf(cls, variant, vid='.'):
         gt = cls.get_genotype(variant)
-        print('vv', variant)
+        alts = cls.get_alts(variant)
         cols = [variant[0],
                 variant[1],
                 vid,
-                variant[9]]
+                variant[9],
+                alts]
         alt_motifs = cls.extract_alt_motifs(variant, gt)
         cols.append(VCF.create_variant_format(variant))
         cols.append(VCF.extract_variant_gt(variant, gt, alt_motifs))
@@ -250,8 +269,9 @@ class Allele:
     6: genome_end
     7: strand
     8: repeat_seq
-    9: label
-    10: genotype
+    9: gt
+    10: label
+    11: genotype
     """
     tsv_headers = ['read_name',
                    'actual_repeat',

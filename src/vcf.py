@@ -69,6 +69,10 @@ class VCF:
             vals[field[0]] = '.'
         
         # 5 = coverage
+        gts = sorted(list(set([a[9] for a in variant[3] if a[9] is not None and a[-2] == 'full'])))
+        if len(gts) == 1:
+            gts.append(gts[0])
+        vals['GT'] = '/'.join(map(str, gts))
         vals['DP'] = str(variant[5])
 
         vals['AL'] = '/'.join([str(a[0]) for a in gt])

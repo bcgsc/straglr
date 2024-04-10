@@ -1251,13 +1251,45 @@ class TREFinder:
             for variant in variants:
                 locus = tuple(variant[:3])
                 if locus in refs:
-                    print('yy', refs[locus])
                     variant.extend(list(refs[locus]))
+                self.assign_alts(variant)
 
         if self.remove_tmps:
             self.cleanup()
 
         return variants
+    
+    def assign_alts(self, variant, w=0.1):
+        ref_size = len(variant[-1])
+        ref_motif = variant[-2]
+        size_ranges = {}
+        i = 1
+        # initialize gt (a[9]) to None (failed reads will be None)
+        for a in variant[3]:
+            a.insert(-2, None)
+        
+        # only pick most frequent motif to represent allele (tiebreak can create error)
+        for allele in variant[6]:
+            sizes = [a[4] for a in variant[3] if a[-1] == allele and a[-2] == 'full']
+            size_ranges = min(sizes) * (1-w), max(sizes) * (1+w)
+
+            motifs = [a[2] for a in variant[3] if a[-1] == allele and a[-2] == 'full']
+            motif = Counter(motifs).most_common(1)[0][0]
+
+            same_size = ref_size >= size_ranges[0] and ref_size <= size_ranges[1]
+            same_motif = self.is_same_repeat((ref_motif, motif))
+
+            # reference gt always 0
+            if same_size and same_motif:
+                gt = 0
+            else:
+                gt = i
+                i += 1
+            
+            # assign gt (a[9])
+            for a in variant[3]:
+                if a[-1] == allele and a[-2] == 'full':
+                    a[9] = gt
 
     def add_reads(self, variant, skipped_reads):
         locus = tuple(variant[:3])
