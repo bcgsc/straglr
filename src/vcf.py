@@ -64,27 +64,26 @@ class VCF:
 
     @classmethod
     def extract_variant_gt(cls, variant, gt, alt_motifs):
-        cols = []
         vals = {}
 
         # 5 = coverage
         gts = sorted(list(set([a[9] for a in variant[3] if a[9] is not None and a[-2] == 'full'])))
-        if len(gts) == 1:
-            gts.append(gts[0])
-        vals['GT'] = '/'.join(map(str, gts))
-        vals['DP'] = str(variant[5])
+        if gts:
+            if len(gts) == 1:
+                gts.append(gts[0])
+            vals['GT'] = '/'.join(map(str, gts))
+            vals['AL'] = '/'.join([str(a[0]) for a in gt])
+            vals['AD'] = '/'.join([str(a[1]) for a in gt])
 
-        vals['AL'] = '/'.join([str(a[0]) for a in gt])
-        vals['AD'] = '/'.join([str(a[1]) for a in gt])
+        if variant[5]:
+            vals['DP'] = str(variant[5])
 
-        vals['AM'] = alt_motifs
+        if alt_motifs:
+            vals['AM'] = alt_motifs
 
         format = []
         for fmt in cls.format:
             if fmt[0] in vals:
                 format.append(fmt[0])
 
-        return [':'.join(format), ':'.join([vals[field[0]] for field in cls.format])]
-
-
-        
+        return [':'.join(format), ':'.join([vals[field[0]] for field in cls.format if field[0] in vals])]
