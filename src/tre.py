@@ -1479,7 +1479,6 @@ class TREFinder:
                 out.write('{}\n'.format('\t'.join(map(str, cols))))
 
     def output_vcf(self, variants, out_file, sample='.'):
-        genome_fasta = pysam.Fastafile(self.genome_fasta)
         with open(out_file, 'w') as out:
             out.write('{}\n'.format(VCF.show_meta(sample)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
