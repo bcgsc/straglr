@@ -612,12 +612,13 @@ class TREFinder:
             choices = []
             for result in results[seq]:
                 repeat_len = result[1] - result[0] + 1
+                copy_number = result[3]
                 same_repeat = 1 if self.is_same_repeat((result[-2], data_motif)) else -1
                 motif_size_diff = abs(len(data_motif) - len(result[-2])) * -1
-                choices.append((result[-2], result[-1], repeat_len, same_repeat, motif_size_diff))
-            choices_sorted = sorted(choices, key=itemgetter(2,3,4), reverse=True)
+                choices.append((result[-2], result[-1], copy_number, repeat_len, same_repeat, motif_size_diff))
+            choices_sorted = sorted(choices, key=itemgetter(3,4,5), reverse=True)
             if choices_sorted:
-                refs[locus] = choices_sorted[0][:2]
+                refs[locus] = choices_sorted[0][:3]
 
         return refs
 
@@ -1273,8 +1274,8 @@ class TREFinder:
             self.cleanup()
     
     def assign_alts(self, variant, w=0.1):
-        ref_size = len(variant[-1])
-        ref_motif = variant[-2]
+        ref_size = len(variant[8])
+        ref_motif = variant[9]
         size_ranges = {}
         i = 1
         # initialize gt (a[9]) to None (failed reads will be None)

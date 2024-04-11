@@ -4,7 +4,8 @@ class VCF:
     info = (
             ('LOCUS', 1, 'String', 'Locus ID'),
             ('END', 1, 'Integer', 'End position of repeat'), 
-            ('MOTIF', 1, 'String', 'Reference motif')
+            ('MOTIF', 1, 'String', 'Reference motif'),
+            ('COPIES', 1, 'Integer', 'Reference copies')
             )
     format = (
               ('GT', 1, 'String', 'Genotype'),
@@ -58,7 +59,7 @@ class VCF:
             pairs.append('LOCUS={}'.format(locus_id))
 
         # 2 == chr, 8 == repeat
-        for key, i in zip(cls.info[1:], (2,8)):
+        for key, i in zip(cls.info[1:], (2,8,10)):
             pairs.append('{}={}'.format(key[0], variant[i]))
 
         return ';'.join(pairs)

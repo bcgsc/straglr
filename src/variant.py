@@ -16,6 +16,7 @@ class Variant:
     7: genotype_summary
     8: ref_motif
     9: ref_seq
+    10: ref_cn
     """
     tsv_headers = ['chrom',
                    'start',
