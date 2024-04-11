@@ -199,7 +199,7 @@ class Variant:
             return '.'
 
     @classmethod
-    def to_vcf(cls, variant, vid='.'):
+    def to_vcf(cls, variant, vid='.', locus_id=None):
         gt = cls.get_genotype(variant)
         gt_sorted = sorted(gt, key=itemgetter(0))
         alts = cls.get_alts(variant)
@@ -213,7 +213,7 @@ class Variant:
                 qual,
                 filter]
         alt_motifs = cls.extract_alt_motifs(variant, gt_sorted)
-        cols.append(VCF.extract_variant_info(variant))
+        cols.append(VCF.extract_variant_info(variant, locus_id))
         cols.extend(VCF.extract_variant_gt(variant, gt_sorted, alt_motifs))
         return '\t'.join(list(map(str, cols)))
 
