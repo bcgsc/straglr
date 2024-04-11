@@ -63,6 +63,9 @@ class TREFinder:
         self.debug = debug
         self.remove_tmps = True if not self.debug else False
 
+        # locus id for vcf
+        self.locus_id = {}
+
     def construct_trf_output(self, input_fasta):
         m = re.search('(\d[\d\s]*\d)', self.trf_args)
         if m is not None:
@@ -1395,8 +1398,9 @@ class TREFinder:
                 if len(cols) >= 4:
                     self.max_str_len = 10000
                     self.min_str_len = 2
-                    #if len(cols[3]) <= self.max_str_len:
                     loci.append((cols[0], int(cols[1]), int(cols[2]), cols[3]))
+                    if len(cols) > 4:
+                        self.locus_id[tuple(cols[:3])] = cols[4]
 
         # use give loci coordinates for reporting
         self.update_loci = False
@@ -1492,7 +1496,9 @@ class TREFinder:
         with open(out_file, 'w') as out:
             out.write('{}\n'.format(VCF.show_meta(sample)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
-                out.write('{}\n'.format(Variant.to_vcf(variant)))
+                locus = tuple(map(str, variant[:3]))
+                locus_id = self.locus_id[locus] if locus in self.locus_id else None
+                out.write('{}\n'.format(Variant.to_vcf(variant, locus_id=locus_id)))
 
     def cleanup(self):
         if self.tmp_files:

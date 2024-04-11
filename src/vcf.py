@@ -2,6 +2,7 @@ class VCF:
     file_format = '4.2'
     header = 'CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'
     info = (
+            ('LOCUS', 1, 'String', 'Locus ID'),
             ('END', 1, 'Integer', 'End position of repeat'), 
             ('MOTIF', 1, 'String', 'Reference motif')
             )
@@ -51,15 +52,15 @@ class VCF:
         return '\n'.join(lines)
     
     @classmethod
-    def extract_variant_info(cls, variant):
+    def extract_variant_info(cls, variant, locus_id):
         pairs = []
+        if locus_id is not None:
+            pairs.append('LOCUS={}'.format(locus_id))
 
         # 2 == chr, 8 == repeat
-        for key, i in zip(cls.info, (2,8)):
+        for key, i in zip(cls.info[1:], (2,8)):
             pairs.append('{}={}'.format(key[0], variant[i]))
 
-        #format_str = ':'.join([f[0] for f in cls.format])
-        #return '{} {}'.format(';'.join(pairs), format_str)
         return ';'.join(pairs)
 
     @classmethod
