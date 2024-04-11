@@ -216,6 +216,18 @@ class Variant:
             alleles = [a[col] for a in variant[3] if a[11] == g and a[-2] == 'full' and a[-1] != '-' and a[-1] != 'NA']
             gt2.append(round(np.mean(alleles), 1))
         return gt2
+    
+    @classmethod
+    def get_allele_ranges(cls, gt, variant, genotype_in_size):
+        size_ranges = []
+        cn_ranges = []
+        for g in gt:
+            alleles = [a for a in variant[3] if a[11] == g and a[-2] == 'full' and a[-1] != '-' and a[-1] != 'NA']
+            sizes = [a[4] for a in alleles]
+            cns = [a[3] for a in alleles]
+            size_ranges.append('{}-{}'.format(min(sizes), max(sizes)))
+            cn_ranges.append('{}-{}'.format(min(cns), max(cns)))
+        return size_ranges, cn_ranges
 
     @classmethod
     def to_vcf(cls, variant, genotype_in_size, vid='.', locus_id=None):
@@ -224,6 +236,8 @@ class Variant:
         gt1 = [g[0] for g in gt_sorted]
         gt2 = cls.convert_gt(gt1, variant, genotype_in_size)
         supports = [g[1] for g in gt_sorted]
+
+        size_ranges, cn_ranges = cls.get_allele_ranges(gt1, variant, genotype_in_size)
 
         (gt_size, gt_cn) = (gt1, gt2) if genotype_in_size else (gt2, gt1)
 
@@ -239,7 +253,7 @@ class Variant:
                 filter]
         alt_motifs = cls.extract_alt_motifs(variant, gt_sorted)
         cols.append(VCF.extract_variant_info(variant, locus_id))
-        cols.extend(VCF.extract_variant_gt(variant, gt_size, gt_cn, supports, alt_motifs))
+        cols.extend(VCF.extract_variant_gt(variant, gt_size, gt_cn, supports, size_ranges, cn_ranges, alt_motifs))
         return '\t'.join(list(map(str, cols)))
 
     @classmethod
