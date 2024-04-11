@@ -7,7 +7,6 @@ import re
 from .variant import Variant, Allele
 from collections import defaultdict, Counter
 from operator import itemgetter, attrgetter
-import itertools
 from .utils import split_tasks, parallel_process, combine_batch_results, create_tmp_file, reverse_complement, merge_spans, complement_spans
 from .ins import INSFinder, INS
 import math
@@ -985,7 +984,6 @@ class TREFinder:
         patterns = {}
         single_neighbour_size = 50
         split_neighbour_size = 500
-        min_mapped = 0.5
         all_clipped = {}
         missed_clipped = []
         skipped_reads = defaultdict(dict)
@@ -1012,7 +1010,6 @@ class TREFinder:
 
                 alns.append(aln)
                 strands[aln.query_name] = '-' if aln.is_reverse else '+'
-                locus_size = locus[2] - locus[1] + 1
 
                 # check split alignments first
                 if self.check_split_alignments and\
