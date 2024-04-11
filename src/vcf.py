@@ -10,9 +10,10 @@ class VCF:
     format = (
               ('GT', 1, 'String', 'Genotype'),
               ('DP', 1, 'Integer', 'Read depth'),
-              ('AL', '.', 'String', 'Allelic length(s)'),
-              ('AD', '.', 'String', 'Allelic depth(s)'),
-              ('AM', '.', 'String', 'Alternate motif(s)'),
+              ('AL', '.', 'String', 'Allelic lengths'),
+              ('AC', '.', 'String', 'Allelic copies'),
+              ('AD', '.', 'String', 'Allelic depths'),
+              ('ALT_MOTIF', '.', 'String', 'Alternate motif(s)'),
              )
 
     @classmethod
@@ -65,23 +66,24 @@ class VCF:
         return ';'.join(pairs)
 
     @classmethod
-    def extract_variant_gt(cls, variant, gt, alt_motifs):
+    def extract_variant_gt(cls, variant, gt_size, gt_cn, supports, alt_motifs):
         vals = {}
 
         # 5 = coverage
         gts = sorted(list(set([a[9] for a in variant[3] if a[9] is not None and a[-2] == 'full'])))
-        if gts:
-            if len(gts) == 1:
-                gts.append(gts[0])
-            vals['GT'] = '/'.join(map(str, gts))
-            vals['AL'] = '/'.join([str(a[0]) for a in gt])
-            vals['AD'] = '/'.join([str(a[1]) for a in gt])
+        vals['GT'] = '/'.join(map(str, gts))
+        for label, val in zip(('AL', 'AC', 'AD'), (gt_size, gt_cn, supports)):
+            if val:
+                val_array = val
+                if len(val) == 1:
+                    val_array.append(val[0])
+                vals[label] = '/'.join(map(str, val_array))
 
         if variant[5]:
             vals['DP'] = str(variant[5])
 
         if alt_motifs:
-            vals['AM'] = alt_motifs
+            vals['ALT_MOTIF'] = alt_motifs
 
         format = []
         for fmt in cls.format:

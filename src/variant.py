@@ -182,17 +182,26 @@ class Variant:
         return '/'.join(am)
 
     @classmethod
-    def get_alts(cls, variant):
+    def get_alts(cls, variant, genotype_in_size):
         choices = defaultdict(list)
         for a in variant[3]:
             if a[9] is None or a[-2] != 'full':
                 continue
             if a[9] > 0:
-                choices[a[9]].append((a[0], a[8], abs(len(a[8]) - a[-1])))
+                if genotype_in_size:
+                    diff = abs(a[-1] - a[4])
+                else:
+                    diff = abs(a[-1] - a[3])
+                choices[a[9]].append((a[0], a[8], diff, a[2]))
 
         alts = []
         for gt in sorted(choices.keys()):
-            rep = sorted(choices[gt], key=itemgetter(2))[0]
+            # pick most common motif
+            motifs = [a[3] for a in choices[gt]]
+            motif = Counter(motifs).most_common(1)[0][0]
+
+            choices_sorted = sorted([a for a in choices[gt] if a[3] == motif], key=itemgetter(2))
+            rep = choices_sorted[0]
             alts.append(rep[1])
         if alts:
             return ','.join(alts)
@@ -200,10 +209,25 @@ class Variant:
             return '.'
 
     @classmethod
-    def to_vcf(cls, variant, vid='.', locus_id=None):
+    def convert_gt(cls, gt, variant, genotype_in_size):
+        col = 3 if genotype_in_size else 4
+        gt2 = []
+        for g in gt:
+            alleles = [a[col] for a in variant[3] if a[11] == g and a[-2] == 'full' and a[-1] != '-' and a[-1] != 'NA']
+            gt2.append(round(np.mean(alleles), 1))
+        return gt2
+
+    @classmethod
+    def to_vcf(cls, variant, genotype_in_size, vid='.', locus_id=None):
         gt = cls.get_genotype(variant)
         gt_sorted = sorted(gt, key=itemgetter(0))
-        alts = cls.get_alts(variant)
+        gt1 = [g[0] for g in gt_sorted]
+        gt2 = cls.convert_gt(gt1, variant, genotype_in_size)
+        supports = [g[1] for g in gt_sorted]
+
+        (gt_size, gt_cn) = (gt1, gt2) if genotype_in_size else (gt2, gt1)
+
+        alts = cls.get_alts(variant, genotype_in_size)
         qual = '.'
         filter = '.'
         cols = [variant[0],
@@ -215,7 +239,7 @@ class Variant:
                 filter]
         alt_motifs = cls.extract_alt_motifs(variant, gt_sorted)
         cols.append(VCF.extract_variant_info(variant, locus_id))
-        cols.extend(VCF.extract_variant_gt(variant, gt_sorted, alt_motifs))
+        cols.extend(VCF.extract_variant_gt(variant, gt_size, gt_cn, supports, alt_motifs))
         return '\t'.join(list(map(str, cols)))
 
     @classmethod

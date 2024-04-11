@@ -1274,8 +1274,8 @@ class TREFinder:
             self.cleanup()
     
     def assign_alts(self, variant, w=0.1):
-        ref_size = len(variant[8])
-        ref_motif = variant[9]
+        ref_size = len(variant[9])
+        ref_motif = variant[8]
         size_ranges = {}
         i = 1
         # initialize gt (a[9]) to None (failed reads will be None)
@@ -1499,7 +1499,7 @@ class TREFinder:
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
                 locus = tuple(map(str, variant[:3]))
                 locus_id = self.locus_id[locus] if locus in self.locus_id else None
-                out.write('{}\n'.format(Variant.to_vcf(variant, locus_id=locus_id)))
+                out.write('{}\n'.format(Variant.to_vcf(variant, self.genotype_in_size, locus_id=locus_id)))
 
     def cleanup(self):
         if self.tmp_files:
