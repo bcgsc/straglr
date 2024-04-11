@@ -1234,8 +1234,6 @@ class TREFinder:
         # set genotyping configuration (class variable)
         Variant.set_genotype_config(min_reads=self.min_cluster_size, max_num_clusters=self.max_num_clusters)
 
-        # for getting ref alleles
-        trf_input = ''
         for variant in variants:
             self.add_reads(variant, skipped_reads)
             self.add_coverage(variant, coverages)
@@ -1243,21 +1241,36 @@ class TREFinder:
             Variant.genotype(variant, report_in_size=self.genotype_in_size)
             Variant.summarize_genotype(variant)
 
+        # update variant with ref_motif, ref_seq, and gt for vcf
+        self.update_refs(variants, genome_fasta)
+
+        if self.remove_tmps:
+            self.cleanup()
+
+        return variants
+
+    def update_refs(self, variants, genome_fasta):
+        ''' add ref_motif and ref_seq to end of variant and assign gt numbers for vcf '''
+        trf_input = ''
+        for variant in variants:
             ref_seq = genome_fasta.fetch(variant[0], variant[1], variant[2])
             header, fa_entry = self.create_trf_fasta(variant[:3] + [variant[4]], '', 0, 0, 0, ref_seq, 0)
             trf_input += fa_entry
+
         if trf_input:
             refs = self.extract_refs_trf(trf_input)
             for variant in variants:
                 locus = tuple(map(str, variant[:3]))
                 if locus in refs:
                     variant.extend(list(refs[locus]))
+                # make allele motif same as ref if they are same
+                for a in variant[3]:
+                    if self.is_same_repeat((variant[8], a[2])):
+                        a[2] = variant[8]
                 self.assign_alts(variant)
 
         if self.remove_tmps:
             self.cleanup()
-
-        return variants
     
     def assign_alts(self, variant, w=0.1):
         ref_size = len(variant[-1])
