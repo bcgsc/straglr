@@ -1494,10 +1494,20 @@ class TREFinder:
                 out.write('{}\n'.format('\t'.join(map(str, cols))))
 
     def output_vcf(self, variants, out_file, sample='.'):
+        # for filters
         fails = Variant.find_fails(variants)
         num_passes = len(variants) - len(fails)
+
+        # for contigs in meta
+        chroms = set([v[0] for v in variants])
+        genome_fasta = pysam.Fastafile(self.genome_fasta)
+        contigs = []
+        for chrom, length in zip(genome_fasta.references, genome_fasta.lengths):
+            if chrom in chroms:
+                contigs.append((chrom, length))
+
         with open(out_file, 'w') as out:
-            out.write('{}\n'.format(VCF.show_meta(sample, num_passes, fails=fails)))
+            out.write('{}\n'.format(VCF.show_meta(sample, num_passes, contigs, ref=self.genome_fasta, fails=fails)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
                 locus = tuple(map(str, variant[:3]))
                 locus_id = self.locus_id[locus] if locus in self.locus_id else None
