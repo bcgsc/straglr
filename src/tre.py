@@ -14,6 +14,7 @@ import random
 from pybedtools import BedTool
 from datetime import datetime
 from .vcf import VCF
+from .version import __version__
 
 class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
@@ -1507,7 +1508,13 @@ class TREFinder:
                 contigs.append((chrom, length))
 
         with open(out_file, 'w') as out:
-            out.write('{}\n'.format(VCF.show_meta(sample, num_passes, contigs, ref=self.genome_fasta, fails=fails)))
+            out.write('{}\n'.format(VCF.show_meta(sample,
+                                                  num_passes,
+                                                  contigs,
+                                                  ref=self.genome_fasta,
+                                                  source='straglrV{}'.format(__version__),
+                                                  date=datetime.now().strftime("%Y%m%d"),
+                                                  fails=fails)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
                 locus = tuple(map(str, variant[:3]))
                 locus_id = self.locus_id[locus] if locus in self.locus_id else None

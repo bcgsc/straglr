@@ -39,12 +39,20 @@ class VCF:
         return '\n'.join(lines)
 
     @classmethod
-    def show_meta(cls, sample, num_passes, contigs, ref=None, fails=None):
+    def show_meta(cls, sample, num_passes, contigs, ref=None, source=None, date=None, fails=None):
         lines = []
         # fileformat
         lines.append('##fileformat=VCFv{}'.format(cls.file_format))
 
+        # fileDate
+        if date is not None:
+            lines.append('##fileDate={}'.format(date))
+
         # source
+        if source is not None:
+            lines.append('##source={}'.format(source))
+
+        # reference
         if ref is not None:
             lines.append('##reference={}'.format(ref))
 
