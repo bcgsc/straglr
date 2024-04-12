@@ -17,6 +17,13 @@ class VCF:
               ('AD', '.', 'String', 'Allelic depths'),
               ('ALT_MOTIF', '.', 'String', 'Alternate motif(s)'),
              )
+    filters = {
+        ('UNMATCHED_MOTIF', 'Unmatched motif'): ('unmatched_motif'),
+        ('PARTIAL_SPAN', 'Repeat not fully span locus'): ('partial_and_insufficient_span',
+                                                         'insufficient_repeat_coverage',
+                                                         'too_far_from_flank'),
+        ('INVALID_MOTIF', 'Invalid motif'): ('motif_size_out_of_range'),
+         }
 
     @classmethod
     def show_info_format(cls, name, data):
@@ -32,7 +39,7 @@ class VCF:
         return '\n'.join(lines)
 
     @classmethod
-    def show_meta(cls, sample='.'):
+    def show_meta(cls, sample, num_passes, fails=None):
         lines = []
         # fileformat
         lines.append('##fileformat=VCFv{}'.format(cls.file_format))
@@ -41,6 +48,17 @@ class VCF:
         lines.append(cls.show_info_format('INFO', cls.info))
 
         # filter
+        filters = []
+        if num_passes > 0:
+            filters.append(('PASS', 'All filters passed'))
+        if fails is not None:
+            for mess in set(fails.values()):
+                for filter in cls.filters:
+                    if mess in cls.filters[filter]:
+                        filters.append(filter)
+        if filters:
+            for id, desc in filters:
+                lines.append('##FILTER=<ID={},Description="{}">'.format(id, desc))
 
         # format
         lines.append(cls.show_info_format('FORMAT', cls.format))
@@ -75,6 +93,7 @@ class VCF:
         gts = sorted(list(set([a[9] for a in variant[3] if a[9] is not None and a[-2] == 'full'])))
         if gts:
             vals['GT'] = '/'.join(map(str, gts))
+
         for label, val in zip(('AL', 'AC', 'AD', 'ALR', 'ACR'), (gt_size, gt_cn, supports, size_ranges, cn_ranges)):
             if val:
                 val_array = val
@@ -94,3 +113,10 @@ class VCF:
                 format.append(fmt[0])
 
         return [':'.join(format), ':'.join([vals[field[0]] for field in cls.format if field[0] in vals])]
+
+    @classmethod
+    def extract_filter(cls, mess):
+        for filter in cls.filters:
+            if mess in cls.filters[filter]:
+                return filter
+        return '.'

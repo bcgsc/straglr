@@ -1494,12 +1494,15 @@ class TREFinder:
                 out.write('{}\n'.format('\t'.join(map(str, cols))))
 
     def output_vcf(self, variants, out_file, sample='.'):
+        fails = Variant.find_fails(variants)
+        num_passes = len(variants) - len(fails)
         with open(out_file, 'w') as out:
-            out.write('{}\n'.format(VCF.show_meta(sample)))
+            out.write('{}\n'.format(VCF.show_meta(sample, num_passes, fails=fails)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
                 locus = tuple(map(str, variant[:3]))
                 locus_id = self.locus_id[locus] if locus in self.locus_id else None
-                out.write('{}\n'.format(Variant.to_vcf(variant, self.genotype_in_size, locus_id=locus_id)))
+                fail = fails[locus] if locus in fails else None
+                out.write('{}\n'.format(Variant.to_vcf(variant, self.genotype_in_size, fail=fail, locus_id=locus_id)))
 
     def cleanup(self):
         if self.tmp_files:

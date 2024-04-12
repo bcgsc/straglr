@@ -153,6 +153,7 @@ class Variant:
     
     @classmethod
     def extract_alt_motifs(cls, variant, gt):
+        ''' for vcf '''
         alts = {}
         for g in gt:
             alts[g[0]] = {}
@@ -183,6 +184,7 @@ class Variant:
 
     @classmethod
     def get_alts(cls, variant, genotype_in_size):
+        ''' for vcf '''
         choices = defaultdict(list)
         for a in variant[3]:
             if a[9] is None or a[-2] != 'full':
@@ -210,19 +212,21 @@ class Variant:
 
     @classmethod
     def convert_gt(cls, gt, variant, genotype_in_size):
+        ''' for vcf '''
         col = 3 if genotype_in_size else 4
         gt2 = []
         for g in gt:
-            alleles = [a[col] for a in variant[3] if a[11] == g and a[-2] == 'full' and a[-1] != '-' and a[-1] != 'NA']
+            alleles = [a[col] for a in variant[3] if a[-1] == g and a[-2] == 'full' and a[-1] != '-' and a[-1] != 'NA']
             gt2.append(round(np.mean(alleles), 1))
         return gt2
     
     @classmethod
-    def get_allele_ranges(cls, gt, variant, genotype_in_size):
+    def get_allele_ranges(cls, gt, variant):
+        ''' for vcf '''
         size_ranges = []
         cn_ranges = []
         for g in gt:
-            alleles = [a for a in variant[3] if a[11] == g and a[-2] == 'full' and a[-1] != '-' and a[-1] != 'NA']
+            alleles = [a for a in variant[3] if a[-1] == g and a[-2] == 'full' and a[-1] != '-' and a[-1] != 'NA']
             sizes = [a[4] for a in alleles]
             cns = [a[3] for a in alleles]
             size_ranges.append('{}-{}'.format(min(sizes), max(sizes)))
@@ -230,20 +234,36 @@ class Variant:
         return size_ranges, cn_ranges
 
     @classmethod
-    def to_vcf(cls, variant, genotype_in_size, vid='.', locus_id=None):
+    def find_fails(cls, variants):
+        failed = [v for v in variants if not v[6]]
+        fails = {}
+        for variant in failed:
+            failed_reasons = [a[10].split('(')[1].rstrip(')') for a in variant[3] if a[10] and 'failed' in a[10]]
+            locus = tuple(map(str, variant[:3]))
+            failed_reason = Counter(failed_reasons).most_common(1)[0][0]
+            fails[locus] = failed_reason
+
+        return fails
+
+    @classmethod
+    def to_vcf(cls, variant, genotype_in_size, vid='.', fail=None, locus_id=None):
         gt = cls.get_genotype(variant)
         gt_sorted = sorted(gt, key=itemgetter(0))
         gt1 = [g[0] for g in gt_sorted]
         gt2 = cls.convert_gt(gt1, variant, genotype_in_size)
         supports = [g[1] for g in gt_sorted]
 
-        size_ranges, cn_ranges = cls.get_allele_ranges(gt1, variant, genotype_in_size)
+        size_ranges, cn_ranges = cls.get_allele_ranges(gt1, variant)
 
         (gt_size, gt_cn) = (gt1, gt2) if genotype_in_size else (gt2, gt1)
 
         alts = cls.get_alts(variant, genotype_in_size)
         qual = '.'
-        filter = '.'
+        filter = 'PASS'
+        if fail is not None:
+            filter = VCF.extract_filter(fail)
+            filter = filter[0]
+
         cols = [variant[0],
                 variant[1],
                 vid,
