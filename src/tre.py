@@ -1515,7 +1515,7 @@ class TREFinder:
                                                   num_passes,
                                                   contigs,
                                                   ref=self.genome_fasta,
-                                                  source='straglrV{}'.format(__version__),
+                                                  source='StraglrV{}'.format(__version__),
                                                   date=datetime.now().strftime("%Y%m%d"),
                                                   fails=fails)))
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
