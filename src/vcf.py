@@ -108,6 +108,8 @@ class VCF:
         # 5 = coverage
         gts = sorted(list(set([a[9] for a in variant[3] if a[9] is not None and a[-2] == 'full'])))
         if gts:
+            if len(gts) == 1:
+                gts.append(gts[0])
             vals['GT'] = '/'.join(map(str, gts))
 
         for label, val in zip(('AL', 'AC', 'AD', 'ALR', 'ACR'), (gt_size, gt_cn, supports, size_ranges, cn_ranges)):
