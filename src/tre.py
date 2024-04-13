@@ -19,7 +19,7 @@ from .version import __version__
 class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
-                 max_num_clusters=3, min_cluster_size=2,
+                 max_num_clusters=3, min_cluster_size=2, sex=None, sample='.',
                  genotype_in_size=False, trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
@@ -66,6 +66,9 @@ class TREFinder:
 
         # locus id for vcf
         self.locus_id = {}
+
+        self.sample = sample
+        self.sex = sex
 
     def construct_trf_output(self, input_fasta):
         m = re.search('(\d[\d\s]*\d)', self.trf_args)
@@ -1494,7 +1497,7 @@ class TREFinder:
 
                 out.write('{}\n'.format('\t'.join(map(str, cols))))
 
-    def output_vcf(self, variants, out_file, sample='.'):
+    def output_vcf(self, variants, out_file):
         # for filters
         fails = Variant.find_fails(variants)
         num_passes = len(variants) - len(fails)
@@ -1508,7 +1511,7 @@ class TREFinder:
                 contigs.append((chrom, length))
 
         with open(out_file, 'w') as out:
-            out.write('{}\n'.format(VCF.show_meta(sample,
+            out.write('{}\n'.format(VCF.show_meta(self.sample,
                                                   num_passes,
                                                   contigs,
                                                   ref=self.genome_fasta,

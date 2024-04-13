@@ -20,6 +20,8 @@ def parse_args():
     parser.add_argument("--nprocs", type=int, help="number of processes", default=1)
     parser.add_argument("--chroms", type=str, nargs="+", help="chromosomes")
     parser.add_argument("--loci", type=str, help="bed file of loci for genotyping")
+    parser.add_argument("--sample", type=str, help="sample name for VCF output", default='.')
+    parser.add_argument("--sex", type=str, help="sex, m(ale) or f(emale)")
     parser.add_argument("--include_alt_chroms", action='store_true', help="include alternate chromosomes. By default, only chroms 1-22,X,Y are considered in genome scan")
     parser.add_argument("--min_support", type=int, help="minimum number of supporting reads for detecting expansion. Default:2", default=2)
     parser.add_argument("--min_cluster_size", type=int, help="minimum number of supporting reads for allele clustering. Default:2", default=2)
@@ -57,6 +59,8 @@ def main():
                            max_num_clusters=args.max_num_clusters,
                            trf_args=' '.join(map(str, args.trf_args + ['-d', '-h'])),
                            include_partials=args.include_partials,
+                           sample=args.sample,
+                           sex=args.sex,
                            debug=args.debug)
 
     variants = []
