@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument("--chroms", type=str, nargs="+", help="chromosomes")
     parser.add_argument("--loci", type=str, help="bed file of loci for genotyping")
     parser.add_argument("--sample", type=str, help="sample name for VCF output", default='.')
-    parser.add_argument("--sex", type=str, help="sex, m(ale) or f(emale)")
+    parser.add_argument("--sex", type=str, help="sex, m(ale) or f(emale)", default='f')
     parser.add_argument("--include_alt_chroms", action='store_true', help="include alternate chromosomes. By default, only chroms 1-22,X,Y are considered in genome scan")
     parser.add_argument("--min_support", type=int, help="minimum number of supporting reads for detecting expansion. Default:2", default=2)
     parser.add_argument("--min_cluster_size", type=int, help="minimum number of supporting reads for allele clustering. Default:2", default=2)
@@ -47,6 +47,9 @@ def main():
 
     min_cluster_size = args.min_cluster_size if args.min_cluster_size < args.min_support else args.min_support
 
+    sex = args.sex[0].lower()
+    if sex != 'm':
+        sex = 'f'
     tre_finder = TREFinder(args.bam,
                            args.genome_fasta,
                            nprocs=args.nprocs,
@@ -60,7 +63,7 @@ def main():
                            trf_args=' '.join(map(str, args.trf_args + ['-d', '-h'])),
                            include_partials=args.include_partials,
                            sample=args.sample,
-                           sex=args.sex,
+                           sex=sex,
                            debug=args.debug)
 
     variants = []
