@@ -711,7 +711,7 @@ class TREFinder:
 
                     # pick pat/motif of longest repeat
                     longest_pat_len = pat_lens_sorted[0][1]
-                    pats = set([p[0] for p in pat_lens if p[1] == longest_pat_len]) 
+                    pats = sorted(set([p[0] for p in pat_lens if p[1] == longest_pat_len])) 
 
                     # match given coordinates, but coords have to make sense first
                     if self.strict and genome_start < genome_end and size > 50:
@@ -733,7 +733,7 @@ class TREFinder:
                         if label == 'partial':
                             # screen "partial" (singly clipped alignments), repeat occupies most of clipped sequence
                             query_len = int(cols[-3])
-                            if not (size / (query_len - flank) >= 0.9):
+                            if query_len > flank and not (size / (query_len - flank) >= 0.9):
                                 label = 'failed (partial_and_insufficient_span)'
                                 if self.debug:
                                     print('partial_and_insufficient_span', read, size, query_len, flank, size / (query_len - flank))
