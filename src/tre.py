@@ -68,7 +68,7 @@ class TREFinder:
         self.locus_id = {}
 
         self.sample = sample
-        self.sex = sex
+        self.sex = sex.lower() if sex is not None else None
 
     def construct_trf_output(self, input_fasta):
         m = re.search('(\d[\d\s]*\d)', self.trf_args)
@@ -851,7 +851,6 @@ class TREFinder:
                 # adjust read motif if it is the same as consensus
                 if allele[2] != variant[4] and self.is_same_repeat((allele[2], variant[4])):
                     allele[2] = variant[4]
-                #print('aa', allele)
             variants.append(variant)
 
         return variants
@@ -1013,6 +1012,9 @@ class TREFinder:
             if check_span[0] > check_span[1]:
                 continue
             for aln in bam.fetch(locus[0], check_span[0], check_span[1]):
+                if self.sex is not None and self.sex.lower() == 'f' and aln.reference_name in ('Y', 'chrY'):
+                    continue
+                
                 if not reads_fasta and not aln.query_sequence:
                     continue
 
@@ -1243,7 +1245,7 @@ class TREFinder:
             self.add_reads(variant, skipped_reads)
             self.add_coverage(variant, coverages)
             # genotype
-            Variant.genotype(variant, report_in_size=self.genotype_in_size)
+            Variant.genotype(variant, sex=self.sex, report_in_size=self.genotype_in_size)
             Variant.summarize_genotype(variant)
 
         # update variant with ref_motif, ref_seq, and gt for vcf
@@ -1257,8 +1259,11 @@ class TREFinder:
     def update_refs(self, variants, genome_fasta):
         ''' add ref_motif and ref_seq to end of variant and assign gt numbers for vcf '''
         trf_input = ''
+        ref_seqs = {}
         for variant in variants:
             ref_seq = genome_fasta.fetch(variant[0], variant[1], variant[2])
+            locus = variant[0], str(variant[1]), str(variant[2])
+            ref_seqs[locus] = ref_seq
             header, fa_entry = self.create_trf_fasta(variant[:3] + [variant[4]], '', 0, 0, 0, ref_seq, 0)
             trf_input += fa_entry
 
@@ -1268,6 +1273,9 @@ class TREFinder:
                 locus = tuple(map(str, variant[:3]))
                 if locus in refs:
                     variant.extend(list(refs[locus]))
+                else:
+                    # ref not repeat?
+                    variant.extend(['.', ref_seqs[locus], '.'])
                 # make allele motif same as ref if they are same
                 for a in variant[3]:
                     if self.is_same_repeat((variant[8], a[2])):
@@ -1289,6 +1297,9 @@ class TREFinder:
         # only pick most frequent motif to represent allele (tiebreak can create error)
         for allele in variant[6]:
             sizes = [a[4] for a in variant[3] if a[-1] == allele and a[-2] == 'full']
+            # allele start with ">"
+            if not sizes:
+                continue
             size_ranges = min(sizes) * (1-w), max(sizes) * (1+w)
 
             motifs = [a[2] for a in variant[3] if a[-1] == allele and a[-2] == 'full']
@@ -1522,7 +1533,7 @@ class TREFinder:
                 locus = tuple(map(str, variant[:3]))
                 locus_id = self.locus_id[locus] if locus in self.locus_id else None
                 fail = fails[locus] if locus in fails else None
-                out.write('{}\n'.format(Variant.to_vcf(variant, self.genotype_in_size, fail=fail, locus_id=locus_id)))
+                out.write('{}\n'.format(Variant.to_vcf(variant, self.genotype_in_size, fail=fail, locus_id=locus_id, sex=self.sex)))
 
     def cleanup(self):
         if self.tmp_files:

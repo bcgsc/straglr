@@ -71,7 +71,7 @@ class INSFinder:
         self.include_alt_chroms = include_alt_chroms
 
     def find_ins(self, regions_bed_file=None):
-        bam = pysam.Samfile(self.bam, 'rb')
+        bam = pysam.AlignmentFile(self.bam, reference_filename=self.genome_fasta)
 
         if regions_bed_file is None:
             if not self.include_alt_chroms:
@@ -172,7 +172,7 @@ class INSFinder:
 
     def examine_regions(self, regions):
         """worker wrapper for examine_region"""
-        bam = pysam.Samfile(self.bam, 'rb')
+        bam = pysam.AlignmentFile(self.bam, reference_filename=self.genome_fasta)
         reads_fasta = []
         if self.reads_fasta:
             for fa in self.reads_fasta:
@@ -196,7 +196,7 @@ class INSFinder:
 
     def examine_region(self, region, bam=None, reads_fasta=None):
         if bam is None:
-            bam = pysam.Samfile(self.bam, 'rb')
+            bam = pysam.AlignmentFile(self.bam, reference_filename=self.genome_fasta)
 
         ins_list = []
         mean_cov = self.get_coverage(bam, region)

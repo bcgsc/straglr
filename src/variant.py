@@ -40,10 +40,11 @@ class Variant:
         cls.clustering = Cluster(cls.genotype_config['min_reads'], cls.genotype_config['max_num_clusters'])
 
     @classmethod
-    def genotype(cls, variant, report_in_size=False):
+    def genotype(cls, variant, sex=None, report_in_size=False):
         # cluster - always use sizes
         sizes = sorted([a[4] for a in variant[3] if a[-1] == 'full'])
-        clusters = cls.clustering.cluster(sizes)
+        max_num_clusters = 1 if sex is not None and sex.lower() == 'm' and variant[0] in ('chrX', 'X') else None
+        clusters = cls.clustering.cluster(sizes, max_num_clusters=max_num_clusters)
 
         # genotype labels: mean of either copy numbers(default) or size
         for cluster in clusters:
@@ -156,9 +157,9 @@ class Variant:
         ''' for vcf '''
         alts = {}
         for g in gt:
-            alts[g[0]] = {}
+            alts[g] = {}
         ref = variant[8]
-    
+
         for allele in variant[3]:
             if allele[-1] == 'NA' or 'failed' in allele[-2]:
                 continue
@@ -170,9 +171,9 @@ class Variant:
 
         am = []
         for g in gt:
-            if alts[g[0]]:
+            if alts[g]:
                 counts = []
-                for motif, count in alts[g[0]].items():
+                for motif, count in alts[g].items():
                     counts.append((motif, count))
                 motifs = []
                 for motif, count in sorted(counts, key=itemgetter(1,0), reverse=True):
@@ -216,7 +217,7 @@ class Variant:
         col = 3 if genotype_in_size else 4
         gt2 = []
         for g in gt:
-            alleles = [a[col] for a in variant[3] if a[-1] == g and a[-2] == 'full' and a[-1] != '-' and a[-1] != 'NA']
+            alleles = [a[col] for a in variant[3] if a[-1] == g and a[-1] != '-' and a[-1] != 'NA']
             gt2.append(round(np.mean(alleles), 1))
         return gt2
     
@@ -226,7 +227,7 @@ class Variant:
         size_ranges = []
         cn_ranges = []
         for g in gt:
-            alleles = [a for a in variant[3] if a[-1] == g and a[-2] == 'full' and a[-1] != '-' and a[-1] != 'NA']
+            alleles = [a for a in variant[3] if a[-1] == g and a[-1] != '-' and a[-1] != 'NA']
             sizes = [a[4] for a in alleles]
             cns = [a[3] for a in alleles]
             size_ranges.append('{}-{}'.format(min(sizes), max(sizes)))
@@ -246,11 +247,26 @@ class Variant:
         return fails
 
     @classmethod
-    def to_vcf(cls, variant, genotype_in_size, vid='.', fail=None, locus_id=None):
+    def extract_gts(cls, variant, genotype_in_size):
         gt = cls.get_genotype(variant)
-        gt_sorted = sorted(gt, key=itemgetter(0))
+
+
+    @classmethod
+    def to_vcf(cls, variant, genotype_in_size, vid='.', sex=None, fail=None, locus_id=None):
+        gt = cls.get_genotype(variant)
+        
+        gt_larger = [g for g in gt if type(g[0]) is str]
+        gt_normal = [g for g in gt if type(g[0]) is not str]
+
+        gt_sorted = sorted(gt_normal, key=itemgetter(0))
         gt1 = [g[0] for g in gt_sorted]
+        if gt_larger:
+            gt1 = [g[0] for g in gt_larger] + gt1
         gt2 = cls.convert_gt(gt1, variant, genotype_in_size)
+        if gt_larger:
+            for i in range(len(gt_larger)):
+                gt2[i] = '>' + str(gt2[i])
+        
         supports = [g[1] for g in gt_sorted]
 
         size_ranges, cn_ranges = cls.get_allele_ranges(gt1, variant)
@@ -271,9 +287,9 @@ class Variant:
                 alts,
                 qual,
                 filter]
-        alt_motifs = cls.extract_alt_motifs(variant, gt_sorted)
+        alt_motifs = cls.extract_alt_motifs(variant, gt1)
         cols.append(VCF.extract_variant_info(variant, locus_id))
-        cols.extend(VCF.extract_variant_gt(variant, gt_size, gt_cn, supports, size_ranges, cn_ranges, alt_motifs))
+        cols.extend(VCF.extract_variant_gt(variant, gt_size, gt_cn, supports, size_ranges, cn_ranges, alt_motifs, sex=sex))
         return '\t'.join(list(map(str, cols)))
 
     @classmethod

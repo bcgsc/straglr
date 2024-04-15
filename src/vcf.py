@@ -102,20 +102,20 @@ class VCF:
         return ';'.join(pairs)
 
     @classmethod
-    def extract_variant_gt(cls, variant, gt_size, gt_cn, supports, size_ranges, cn_ranges, alt_motifs):
+    def extract_variant_gt(cls, variant, gt_size, gt_cn, supports, size_ranges, cn_ranges, alt_motifs, sex=None):
         vals = {}
 
         # 5 = coverage
         gts = sorted(list(set([a[9] for a in variant[3] if a[9] is not None and a[-2] == 'full'])))
         if gts:
-            if len(gts) == 1:
+            if len(gts) == 1 and (sex is None or sex.lower() == 'f' or (sex.lower() == 'm' and variant[0] not in ('X', 'chrX'))):
                 gts.append(gts[0])
             vals['GT'] = '/'.join(map(str, gts))
 
         for label, val in zip(('AL', 'AC', 'AD', 'ALR', 'ACR'), (gt_size, gt_cn, supports, size_ranges, cn_ranges)):
             if val:
                 val_array = val
-                if len(val) == 1:
+                if len(val) == 1 and (sex is None or sex.lower() == 'f' or (sex.lower() == 'm' and variant[0] not in ('X', 'chrX'))):
                     val_array.append(val[0])
                 vals[label] = '/'.join(map(str, val_array))
 

@@ -8,15 +8,17 @@ class Cluster:
         self.min_pts = min_pts
         self.max_num_clusters = max_num_clusters
         
-    def cluster(self, data):
+    def cluster(self, data, max_num_clusters=None):
         try:
-            return self.gmm(data)
+            return self.gmm(data, max_num_clusters=max_num_clusters)
         except:
             return []
         
-    def gmm(self, x):
+    def gmm(self, x, max_num_clusters=None):
         X = np.array([[i] for i in x])
-        N = np.arange(1, self.max_num_clusters + 1)
+        if max_num_clusters == None:
+            max_num_clusters = self.max_num_clusters
+        N = np.arange(1, max_num_clusters + 1)
         models = [None for i in range(len(N))]
         AICs = []
         BICs = []
