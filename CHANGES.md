@@ -55,3 +55,8 @@ v1.4.1
 - always go ahead to genotyping phase even if repeat in insertion cannot be matched against locus in reference genome (behaviour before `1.4.0`)
 - skip read if it has multiple clipped alignments to same end
 - fixed `test.bam` (duplicate records for some reads) and updated test results
+
+v1.5.0
+- output VCF file
+- added `--sex` parameter: when `m` is specified, clustering of alleles is limited to one cluster for chrX and genotype is automatically homozygous in VCF for chrX loci
+- support CRAM file
