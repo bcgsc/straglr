@@ -33,6 +33,7 @@ def parse_args():
     parser.add_argument("--use_unpaired_clips", action='store_true', help="also examine unpaired clipped alignments in genome scan")
     parser.add_argument("--include_partials", action='store_true', help="detect and report reads only capturing partial repeats when genotyping")
     parser.add_argument("--trf_args", type=int, nargs=7, help="tandem repeat finder arguments. Default:2 5 5 80 10 10 500", metavar=trf_args_meta, default=[2,5,5,80,10,10,500])
+    parser.add_argument("--symbolic", action='store_true', help="output symbolic alleles instead of actual sequences for ALTs in VCF output")
     parser.add_argument("--tmpdir", type=str, help="directory to use for generating tmp files instead of system TEMP")
     parser.add_argument("--debug", action='store_true', help="debug mode i.e. keep trf output")
     parser.add_argument("--version", action='version', version=__version__)
@@ -64,6 +65,7 @@ def main():
                            include_partials=args.include_partials,
                            sample=args.sample,
                            sex=sex,
+                           symbolic=args.symbolic,
                            debug=args.debug)
 
     variants = []
