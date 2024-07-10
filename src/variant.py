@@ -299,7 +299,8 @@ class Variant:
 
         # found alt motifs first to find alias
         alt_motifs, motif_alias = cls.extract_alt_motifs(variant, gt1)
-        if alt_motifs:
+        has_alt_motifs = True if alt_motifs not in ('.', './.') else False
+        if has_alt_motifs:
             symbolic = False
         alts = cls.get_alts(variant, genotype_in_size, motif_alias, symbolic=symbolic)
         qual = '.'
@@ -315,7 +316,6 @@ class Variant:
                 alts,
                 qual,
                 filter]
-        #alt_motifs = cls.extract_alt_motifs(variant, gt1)
         cols.append(VCF.extract_variant_info(variant, locus_id))
         cols.extend(VCF.extract_variant_gt(variant, gt_size, gt_cn, supports, size_ranges, cn_ranges, alt_motifs, sex=sex))
         return '\t'.join(list(map(str, cols)))
