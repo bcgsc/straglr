@@ -4,8 +4,8 @@ class VCF:
     info = (
             ('LOCUS', 1, 'String', 'Locus ID'),
             ('END', 1, 'Integer', 'End position of repeat'), 
-            ('MOTIF', 1, 'String', 'Reference motif'),
-            ('COPIES', 1, 'Float', 'Reference copies')
+            ('RU', 1, 'String', 'Repeat unit in the reference orientation'),
+            ('REF', 1, 'Float', 'Reference copy number')
             )
     format = (
               ('GT', 1, 'String', 'Genotype'),
@@ -40,7 +40,7 @@ class VCF:
         return '\n'.join(lines)
 
     @classmethod
-    def show_meta(cls, sample, num_passes, contigs, ref=None, source=None, date=None, fails=None):
+    def show_meta(cls, sample, num_passes, contigs, ref=None, source=None, date=None, fails=None, alts=[]):
         lines = []
         # fileformat
         lines.append('##fileformat=VCFv{}'.format(cls.file_format))
@@ -80,7 +80,10 @@ class VCF:
         # format
         lines.append(cls.show_info_format('FORMAT', cls.format))
 
-        # alt
+        # alts
+        if alts:
+            for alt in alts:
+                lines.append('##ALT=<ID={},Description="Allele comprised of {} repeat units">'.format(alt, alt[2:]))
 
         # header
         cols = list(cls.header)
