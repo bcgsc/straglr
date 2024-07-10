@@ -23,6 +23,7 @@ class VCF:
                                                          'insufficient_repeat_coverage',
                                                          'too_far_from_flank'),
         ('INVALID_MOTIF', 'Invalid motif'): ('motif_size_out_of_range'),
+        ('CLUSTERING_FAILED', 'Clustering failed to formulate genotype'): ('clustering_failed'),
          }
 
     @classmethod
