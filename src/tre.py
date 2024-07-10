@@ -7,7 +7,7 @@ import re
 from .variant import Variant, Allele
 from collections import defaultdict, Counter
 from operator import itemgetter, attrgetter
-from .utils import split_tasks, parallel_process, combine_batch_results, create_tmp_file, reverse_complement, merge_spans, complement_spans
+from .utils import split_tasks, parallel_process, combine_batch_results, create_tmp_file, reverse_complement, merge_spans, complement_spans, is_same_repeat
 from .ins import INSFinder, INS
 import math
 import random
@@ -20,7 +20,7 @@ class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
                  max_num_clusters=3, min_cluster_size=2, sex=None, sample='.',
-                 genotype_in_size=False, trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, debug=False):
+                 genotype_in_size=False, trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, symbolic=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
         trf_path = spawn.find_executable("trf")
@@ -66,6 +66,8 @@ class TREFinder:
 
         # locus id for vcf
         self.locus_id = {}
+        # output symbolic alleles
+        self.symbolic = symbolic
 
         self.sample = sample
         self.sex = sex.lower() if sex is not None else None
@@ -195,56 +197,6 @@ class TREFinder:
         
         return same_pats
 
-    def is_same_repeat(self, reps, same_pats=None, min_fraction=0.5):
-        def check_same_pats(rep1, rep2):
-            if rep1 in same_pats:
-                if rep2 in same_pats[rep1]:
-                    return True
-
-                for rep in same_pats[rep1]:
-                    if rep2 in rep:
-                        if float(rep.count(rep2) * len(rep2)) / len(rep) >= min_fraction:
-                            return True
-                    elif rep in rep2:
-                        if float(rep2.count(rep) * len(rep)) / len(rep2) >= min_fraction:
-                            return True
-
-            return False
-
-        if len(reps[0]) <= len(reps[1]):
-            rep1, rep2 = reps[0], reps[1]
-        else:
-            rep2, rep1 = reps[0], reps[1]
-
-        if rep1 == rep2:
-            return True
-
-        perms1 = []
-        for i in range(len(rep1)):
-            pat = rep1[i:] + rep1[:i]
-            perms1.append(pat)
-
-        for p1 in perms1:
-            if p1 in rep2:
-                if float(rep2.count(p1) * len(p1)) / len(rep2) >= min_fraction:
-                    return True
-
-        if same_pats:
-            if check_same_pats(reps[0], reps[1]) or check_same_pats(reps[1], reps[0]):
-                return True
-
-            for i in range(0, len(reps[0]), 5):
-                pat = reps[0][i:] + reps[0][:i]
-                if check_same_pats(pat, reps[1]) or check_same_pats(reps[1], pat):
-                    return True
-
-            for i in range(0, len(reps[1]), 5):
-                pat = reps[1][i:] + reps[1][:i]
-                if check_same_pats(pat, reps[0]) or check_same_pats(reps[0], pat):
-                    return True
-
-        return False
-
     def combine_trf_coords(self, coords, bounds, buf=20, max_sep=50):
         # screen out repeat completely in the flanks
         coords = [c for c in coords if not (c[1] < bounds[0] - buf or c[0] > bounds[1] + buf)]
@@ -288,7 +240,7 @@ class TREFinder:
             for pt in ('t', 'q'):
                 for r in sorted(filtered_results[pt], key=lambda r: len(r[13]), reverse=True):
                     pat = r[13]
-                    if i_pat in pat or pat in i_pat or self.is_same_repeat((i_pat, pat), same_pats):
+                    if i_pat in pat or pat in i_pat or is_same_repeat((i_pat, pat), same_pats):
                         i_pat_matches[pt] = True
                         break
 
@@ -307,7 +259,7 @@ class TREFinder:
                     # check for identical repeats first
                     for i in range(len(filtered_results['t'])):
                         r = filtered_results['t'][i]
-                        if len(set(r[13])) > 1 and self.is_same_repeat((i_pat, r[13]), min_fraction=1):
+                        if len(set(r[13])) > 1 and is_same_repeat((i_pat, r[13]), min_fraction=1):
                             if rep_len is None or rep_lens[i] > rep_len:
                                pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
                                rep_len = rep_lens[i]
@@ -319,7 +271,7 @@ class TREFinder:
                             r = filtered_results['t'][i]
                             if len(set(r[13])) == 1:
                                 continue
-                            if not force_target_match and (i_pat in r[13] or r[13] in i_pat or self.is_same_repeat((i_pat, r[13]), same_pats)):
+                            if not force_target_match and (i_pat in r[13] or r[13] in i_pat or is_same_repeat((i_pat, r[13]), same_pats)):
                                 if rep_len is None or rep_lens[i] > rep_len:
                                     pgstart, pgend = gstart + r[0] - 1, gstart + r[1] - 1
                                     rep_len = rep_lens[i]
@@ -491,7 +443,7 @@ class TREFinder:
             locus = tuple(cols[:3])
             seq_len = int(cols[-3])
             same_pats[locus] = None
-            targets[locus] |= set([s for s in patterns[seq].split(',') if len(s) >= word_size])
+            targets[locus] |= set([s for s in patterns[seq].split(',') if len(s) >= word_size and s != '-'])
             for result in results[seq]:
                 if len(result[13]) >= min_len or (seq_len - 2*self.trf_flank_size < 50 and len(patterns[seq]) >= 6 and len(result[13]) >= 0.5 * len(patterns[seq])):
                     queries[locus].add(result[13])
@@ -617,7 +569,7 @@ class TREFinder:
             for result in results[seq]:
                 repeat_len = result[1] - result[0] + 1
                 copy_number = result[3]
-                same_repeat = 1 if self.is_same_repeat((result[-2], data_motif)) else -1
+                same_repeat = 1 if is_same_repeat((result[-2], data_motif)) else -1
                 motif_size_diff = abs(len(data_motif) - len(result[-2])) * -1
                 choices.append((result[-2], result[-1], copy_number, repeat_len, same_repeat, motif_size_diff))
             choices_sorted = sorted(choices, key=itemgetter(3,4,5), reverse=True)
@@ -671,7 +623,7 @@ class TREFinder:
             for result in results[seq]:
                 if len(set(result[13])) > 1 and len(result[13]) >= self.min_str_len and len(result[13]) <= self.max_str_len:
                     for pat in expected_pats:
-                        if self.is_same_repeat((result[13], pat), same_pats=same_pats[locus]):
+                        if pat == '-' or is_same_repeat((result[13], pat), same_pats=same_pats[locus]):
                             results_matched.append(result)
                             pat_lens.append((result[13], len(result[-1])))
                             continue
@@ -849,7 +801,7 @@ class TREFinder:
                 allele[3] = round(float(allele[4]) / len(variant[4]), 1)
                 
                 # adjust read motif if it is the same as consensus
-                if allele[2] != variant[4] and self.is_same_repeat((allele[2], variant[4])):
+                if allele[2] != variant[4] and is_same_repeat((allele[2], variant[4])):
                     allele[2] = variant[4]
             variants.append(variant)
 
@@ -1278,7 +1230,7 @@ class TREFinder:
                     variant.extend(['.', ref_seqs[locus], '.'])
                 # make allele motif same as ref if they are same
                 for a in variant[3]:
-                    if self.is_same_repeat((variant[8], a[2])):
+                    if is_same_repeat((variant[8], a[2])):
                         a[2] = variant[8]
                 self.assign_alts(variant)
 
@@ -1306,7 +1258,7 @@ class TREFinder:
             motif = Counter(motifs).most_common(1)[0][0]
 
             same_size = ref_size >= size_ranges[0] and ref_size <= size_ranges[1]
-            same_motif = self.is_same_repeat((ref_motif, motif))
+            same_motif = is_same_repeat((ref_motif, motif))
 
             # reference gt always 0
             if same_size and same_motif:
@@ -1522,18 +1474,28 @@ class TREFinder:
                 contigs.append((chrom, length))
 
         with open(out_file, 'w') as out:
-            out.write('{}\n'.format(VCF.show_meta(self.sample,
-                                                  num_passes,
-                                                  contigs,
-                                                  ref=self.genome_fasta,
-                                                  source='StraglrV{}'.format(__version__),
-                                                  date=datetime.now().strftime("%Y%m%d"),
-                                                  fails=fails)))
+            body = ''
+            alts = set()
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
                 locus = tuple(map(str, variant[:3]))
                 locus_id = self.locus_id[locus] if locus in self.locus_id else None
                 fail = fails[locus] if locus in fails else None
-                out.write('{}\n'.format(Variant.to_vcf(variant, self.genotype_in_size, fail=fail, locus_id=locus_id, sex=self.sex)))
+                tsv = Variant.to_vcf(variant, self.genotype_in_size, fail=fail, locus_id=locus_id, sex=self.sex, symbolic=self.symbolic)
+                body += '{}\n'.format(tsv)
+                if self.symbolic:
+                    alt = tsv.split('\t')[4]
+                    if alt != '.' and 'TR' in alt:
+                        alts.update([a[1:-1] for a in alt.split(',')])
+
+            out.write('{}\n'.format(VCF.show_meta(self.sample,
+                                                  num_passes,
+                                                  contigs,
+                                                  ref=self.genome_fasta,
+                                                  alts=alts,
+                                                  source='StraglrV{}'.format(__version__),
+                                                  date=datetime.now().strftime("%Y%m%d"),
+                                                  fails=fails)))
+            out.write(body)
 
     def cleanup(self):
         if self.tmp_files:
