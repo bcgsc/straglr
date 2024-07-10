@@ -241,7 +241,10 @@ class Variant:
         for variant in failed:
             failed_reasons = [a[10].split('(')[1].rstrip(')') for a in variant[3] if a[10] and 'failed' in a[10]]
             locus = tuple(map(str, variant[:3]))
-            failed_reason = Counter(failed_reasons).most_common(1)[0][0]
+            # no failed reason, but no genotype, most probable reason: No cluster was formed
+            failed_reason = 'clustering_failed'
+            if failed_reasons:
+                failed_reason = Counter(failed_reasons).most_common(1)[0][0]
             fails[locus] = failed_reason
 
         return fails
@@ -249,7 +252,6 @@ class Variant:
     @classmethod
     def extract_gts(cls, variant, genotype_in_size):
         gt = cls.get_genotype(variant)
-
 
     @classmethod
     def to_vcf(cls, variant, genotype_in_size, vid='.', sex=None, fail=None, locus_id=None):
