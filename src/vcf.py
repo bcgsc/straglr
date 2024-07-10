@@ -1,3 +1,5 @@
+import re
+
 class VCF:
     file_format = '4.2'
     header = 'CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'
@@ -81,8 +83,10 @@ class VCF:
         lines.append(cls.show_info_format('FORMAT', cls.format))
 
         # alts
+        # for sorting alts numerically (TRxx)
+        regex = r'\d+$'
         if alts:
-            for alt in alts:
+            for alt in sorted(alts, key=lambda x: int(re.findall(regex, x)[0])):
                 lines.append('##ALT=<ID={},Description="Allele comprised of {} repeat units">'.format(alt, alt[2:]))
 
         # header
