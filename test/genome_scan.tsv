@@ -1,4 +1,4 @@
-#2024-04-15_14:12:29 /home/rchiu/work/git/straglr/straglr.py test.bam /projects/btl/rchiu/hg38.fa genome_scan --genotype_in_size --include_partials --sample Sample
+#2024-07-10_17:21:21 /home/rchiu/work/git/straglr/straglr.py test.bam /projects/btl/rchiu/hg38.fa genome_scan --genotype_in_size --include_partials --sample Sample
 #chrom	start	end	target_repeat	locus	coverage	genotype	read_name	actual_repeat	copy_number	size	read_start	strand	allele	read_status
 chr22	45795355	45795424	ATTCT	chr22:45795355-45795424	17	1934.0(12)	chr22_243851_aligned_1487_F_1_10297_7	TTCTA	393.6	1968	5965	+	1934.0	full
 chr22	45795355	45795424	ATTCT	chr22:45795355-45795424	17	1934.0(12)	chr22_243228_aligned_3151_F_11_11487_14	TTCTA	391.0	1955	6612	+	1934.0	full

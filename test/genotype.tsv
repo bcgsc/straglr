@@ -1,4 +1,4 @@
-#2024-04-15_14:13:55 /home/rchiu/work/git/straglr/straglr.py test.bam /projects/btl/rchiu/hg38.fa genotype --loci test.bed --genotype_in_size --include_partials --sample Sample
+#2024-07-10_17:17:59 /home/rchiu/work/git/straglr/straglr.py test.bam /projects/btl/rchiu/hg38.fa genotype --loci test.bed --genotype_in_size --include_partials --sample Sample
 #chrom	start	end	target_repeat	locus	coverage	genotype	read_name	actual_repeat	copy_number	size	read_start	strand	allele	read_status
 chr22	45795354	45795424	ATTCT	chr22:45795354-45795424	18	1928.7(12)	chr22_243851_aligned_1487_F_1_10297_7	ATTCT	393.6	1968	5965	+	1928.7	full
 chr22	45795354	45795424	ATTCT	chr22:45795354-45795424	18	1928.7(12)	chr22_242852_aligned_79_F_34_13584_11	ATTCT	390.0	1950	6918	+	1928.7	full
