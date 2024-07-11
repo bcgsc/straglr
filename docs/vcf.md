@@ -11,14 +11,15 @@ Loci requested for genotyping (specified in `--loci`) may fail and one of the fi
 | UNMATCHED_MOTIF | motif detected is not the same as the specified motif |
 | PARTIAL_SPAN | repeat detected not spanning majority (90%) locus |
 | INVALID_MOTIF | motif detected outside motif size range |
+| CLUSTERING_FAILED | clustering failed to formulate genotype |
 
 ## INFO
 | Field | Description |
 | ------ | ------ |
 | LOCUS | Locus ID: fourth column (after chrom, statrt, end, motif) in BED file from parameter `--loci` e.g. gene name |
 | END | End position of repeat |
-| MOTIF | Reference motif: motif detected by TRF on reference sequence |
-| COPIES | Reference copies: extracted from TRF result on reference sequence |
+| RU | Motif (reference unit) detected by TRF on reference sequence |
+| REF | Copy number extracted from TRF result on reference sequence |
 
 ## FORMAT
 | Field | Description |
