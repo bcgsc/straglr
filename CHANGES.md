@@ -60,3 +60,11 @@ v1.5.0
 - output VCF file
 - added `--sex` parameter: when `m` is specified, clustering of alleles is limited to one cluster for chrX and genotype is automatically homozygous in VCF for chrX loci
 - support CRAM file
+
+v1.5.1
+- option to put `-` to NOT specify intended motif (4th column in BED file) in genotype mode, detected motif will not be screened for agreement
+- `--symbolic` parameter to report ALT alleles in symbolic form - only enforced when motif of alternative alleles is the same as reference
+- `CLUSTERING_FAILED` added as (default) reason for failure to detect/report genotype
+- bugfix: alternative motifs checked for equivalence for proper count reports in VCF output
+- bugfix: size and copy range of alleles only include "full" supporting reads even if partials were included, but "partial" reads will be reported in support counts
+- `MOTIF` renamed to `RU`, `COPIES` to `REF` in VCF fields
