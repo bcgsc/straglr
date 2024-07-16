@@ -219,7 +219,7 @@ class Variant:
             motifs = [a[3] for a in choices[gt]]
             motif = Counter(motifs).most_common(1)[0][0]
 
-            choices_sorted = sorted([a for a in choices[gt] if a[3] == motif], key=itemgetter(2))
+            choices_sorted = sorted([a for a in choices[gt] if a[3] == motif], key=itemgetter(2,0))
             rep = choices_sorted[0]
             if not symbolic:
                 # sequence
