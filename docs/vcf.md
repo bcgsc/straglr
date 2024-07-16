@@ -1,7 +1,7 @@
 ## VCF output from Straglr
 - [VCFv4.2 specification](https://samtools.github.io/hts-specs/VCFv4.2.pdf) followed
 - Sample name (`--sample`) must be provided (otherwise `.` will be used as sample name)
-- One TR sequence from support reads will be picked - closest in size (bp) to reported (mean) value - to represent each non-reference allele in `ALT`
+- One TR sequence from support reads is chosen (closest in size to assigned allele size) to represent each non-reference allele in `ALT`
 
 ## FILTER
 Loci requested for genotyping (specified in `--loci`) may fail and one of the filters (besides `PASS`) was assigned
