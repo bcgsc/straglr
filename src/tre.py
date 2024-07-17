@@ -551,13 +551,12 @@ class TREFinder:
 
         return matches
 
-    def extract_refs_trf(self, trf_input):
+    def extract_refs_trf(self, trf_input, ref_motifs):
         results, motif_out_of_range = self.perform_trf(trf_input)
 
         refs = {}
         for seq in results.keys():
             cols = seq.split(':')[:-1]
-            data_motif = cols[3]
             seq_len = int(cols[7])
 
             if len(cols) < 7:
@@ -565,6 +564,7 @@ class TREFinder:
                     print('problematic seq id: {}'.format(seq))
                 continue
             locus = tuple(cols[:3])
+            data_motif = ref_motifs[locus]
 
             choices = []
             for result in results[seq]:
@@ -1222,15 +1222,17 @@ class TREFinder:
         ''' add ref_motif and ref_seq to end of variant and assign gt numbers for vcf '''
         trf_input = ''
         ref_seqs = {}
+        ref_motifs = {}
         for variant in variants:
             ref_seq = genome_fasta.fetch(variant[0], variant[1], variant[2])
             locus = variant[0], str(variant[1]), str(variant[2])
             ref_seqs[locus] = ref_seq
-            header, fa_entry = self.create_trf_fasta(variant[:3] + [variant[4]], '', 0, 0, 0, ref_seq, 0)
+            ref_motifs[locus] = variant[4]
+            header, fa_entry = self.create_trf_fasta(variant[:3] + [''], '', 0, 0, 0, ref_seq, 0)
             trf_input += fa_entry
 
         if trf_input:
-            refs = self.extract_refs_trf(trf_input)
+            refs = self.extract_refs_trf(trf_input, ref_motifs)
             for variant in variants:
                 locus = tuple(map(str, variant[:3]))
                 if locus in refs:
@@ -1264,7 +1266,10 @@ class TREFinder:
             ref_cn = variant[10]
             # use reference motif not variant motif for calculating allele_cn
             allele_cn = allele if not self.genotype_in_size else allele/len(variant[8])
-            cn_change = abs(allele_cn - ref_cn)
+            if type(ref_cn) is str:
+                cn_change = 0
+            else:
+                cn_change = abs(allele_cn - ref_cn)
             if cn_change < min_cn_change:
                 same_size = True
 
