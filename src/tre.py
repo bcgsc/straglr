@@ -10,6 +10,7 @@ from operator import itemgetter, attrgetter
 from .utils import split_tasks, parallel_process, combine_batch_results, create_tmp_file, reverse_complement, merge_spans, complement_spans, is_same_repeat
 from .ins import INSFinder, INS
 import math
+import numpy as np
 import random
 from pybedtools import BedTool
 from datetime import datetime
@@ -657,7 +658,6 @@ class TREFinder:
                     repeat_seq = repeat_seqs[seq][coords[0]-1:coords[-1]]
                     size = coords[-1] - coords[0] + 1
                     rpos = rstart + coords[0] - 1
-                    #pats = set([r[-2] for r in results_matched])
                     genome_start = int(gstart) + coords[0]
                     genome_end = int(gend) - (seq_len - coords[-1])
 
@@ -673,11 +673,13 @@ class TREFinder:
                                 genome_start = int(locus[1])
                                 rpos += diff
                                 size -= diff
+                                repeat_seq = repeat_seq[diff:]
                         if genome_end > int(locus[2]):
                             diff = genome_end - int(locus[2])
                             if diff < size:
                                 genome_end = int(locus[2])
                                 size -= diff
+                                repeat_seq = repeat_seq[:-1*diff]
 
                     if label == 'full' and self.debug:
                         print('passed {} {} {} {} {} {} {} {} {} {} {} {}'.format(read, locus, strands[read], size, rpos, gstart, gend, seq_len, coords, genome_start, genome_end, read_len))
@@ -778,7 +780,15 @@ class TREFinder:
 
                 # update pattern counts
                 if alleles[locus][read][-1] == 'full':
-                    pat_counts.update(alleles[locus][read][1])
+                    motifs = []
+                    for motif in alleles[locus][read][1]:
+                        motif_update = motif
+                        for m in pat_counts:
+                            if is_same_repeat((m, motif)):
+                                motif_update = m
+                                break
+                        motifs.append(motif_update)
+                    pat_counts.update(motifs)
 
             variant[5] = len(variant[3])
 
@@ -1237,7 +1247,7 @@ class TREFinder:
         if self.remove_tmps:
             self.cleanup()
     
-    def assign_alts(self, variant, w=0.1):
+    def assign_alts(self, variant, min_cn_change=1, w=0.1):
         ref_size = len(variant[9])
         ref_motif = variant[8]
         size_ranges = {}
@@ -1248,16 +1258,28 @@ class TREFinder:
         
         # only pick most frequent motif to represent allele (tiebreak can create error)
         for allele in variant[6]:
+            same_size = False
+    
+            # if assigned allele in copy number is <1 copy number from reference, it's reference allele
+            ref_cn = variant[10]
+            # use reference motif not variant motif for calculating allele_cn
+            allele_cn = allele if not self.genotype_in_size else allele/len(variant[8])
+            cn_change = abs(allele_cn - ref_cn)
+            if cn_change < min_cn_change:
+                same_size = True
+
             sizes = [a[4] for a in variant[3] if a[-1] == allele and a[-2] == 'full']
             # allele start with ">"
             if not sizes:
                 continue
-            size_ranges = min(sizes) * (1-w), max(sizes) * (1+w)
+            # interquartile range * 10%
+            size_ranges = np.percentile(sizes,[25,75])
 
             motifs = [a[2] for a in variant[3] if a[-1] == allele and a[-2] == 'full']
             motif = Counter(motifs).most_common(1)[0][0]
 
-            same_size = ref_size >= size_ranges[0] and ref_size <= size_ranges[1]
+            if not same_size:
+                same_size = ref_size >= size_ranges[0] * (1-w) and ref_size <= size_ranges[1] * (1+w)
             same_motif = is_same_repeat((ref_motif, motif))
 
             # reference gt always 0
