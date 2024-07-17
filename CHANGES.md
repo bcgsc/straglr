@@ -65,6 +65,9 @@ v1.5.1
 - option to put `-` to NOT specify intended motif (4th column in BED file) in genotype mode, detected motif will not be screened for agreement
 - `--symbolic` parameter to report ALT alleles in symbolic form - only enforced when motif of alternative alleles is the same as reference
 - `CLUSTERING_FAILED` added as (default) reason for failure to detect/report genotype
+- ALT assignment conditions changed to using interquartile range instead of all support read sizes and at least one copy number difference from REF
 - bugfix: alternative motifs checked for equivalence for proper count reports in VCF output
 - bugfix: size and copy range of alleles only include "full" supporting reads even if partials were included, but "partial" reads will be reported in support counts
+- bugfix: allele motif equivalence checked to perform proper tallying for determining consensus motif in variant
+- used read name as tiebreaker for choosing support read sequence as ALT
 - `MOTIF` renamed to `RU`, `COPIES` to `REF` in VCF fields
