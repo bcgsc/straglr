@@ -326,7 +326,7 @@ class TREFinder:
         tres_bed = BedTool(bed_line, from_string=True)
         tres_merged = tres_bed.sort().merge(d=d, c='4,2', o='distinct,count')
         if self.debug:
-            tres_merged_file = create_tmp_file('')
+            tres_merged_file = create_tmp_file('', '.bed')
             tres_merged.saveas(tres_merged_file)
             print('tres_loci(merged) {}'.format(tres_merged_file))
         
@@ -341,7 +341,7 @@ class TREFinder:
             merged.append([tre[0], int(tre[1]), int(tre[2]), tre[3]])
 
         if self.debug:
-            tres_merged_file = create_tmp_file('')
+            tres_merged_file = create_tmp_file('', '.bed')
             BedTool('\n'.join(['\t'.join(list(map(str, m))) for m in merged]), from_string=True).saveas(tres_merged_file)
             print('tres_loci(final) {}'.format(tres_merged_file))
 
@@ -425,7 +425,7 @@ class TREFinder:
                set([pat_counts.most_common()[0][0]])
 
     def perform_trf(self, seqs):
-        trf_fasta = create_tmp_file(seqs)
+        trf_fasta = create_tmp_file(seqs, '.fa')
         if self.debug:
             print('trf input {}'.format(trf_fasta))
         self.tmp_files.add(trf_fasta)
@@ -470,9 +470,9 @@ class TREFinder:
         return same_pats
 
     def run_blastn_for_missed_clipped(self, query_fa, target_fa, word_size):
-        query_file = create_tmp_file(query_fa)
-        target_file = create_tmp_file(target_fa)
-        blastn_out = create_tmp_file('')
+        query_file = create_tmp_file(query_fa, '.fa')
+        target_file = create_tmp_file(target_fa, '.fa')
+        blastn_out = create_tmp_file('', '.blastn')
         self.tmp_files.add(query_file)
         self.tmp_files.add(target_file)
         self.tmp_files.add(blastn_out)
@@ -510,9 +510,9 @@ class TREFinder:
             target_fa += '>{}\n{}\n'.format(seq, seq*2)
 
         if query_fa and target_fa:
-            query_file = create_tmp_file(query_fa)
-            target_file = create_tmp_file(target_fa)
-            blastn_out = create_tmp_file('')
+            query_file = create_tmp_file(query_fa, '.fa')
+            target_file = create_tmp_file(target_fa, '.fa')
+            blastn_out = create_tmp_file('', '.blastn')
             self.tmp_files.add(query_file)
             self.tmp_files.add(target_file)
             self.tmp_files.add(blastn_out)
@@ -704,7 +704,7 @@ class TREFinder:
                 if self.debug:
                     print('unmatched_motif', locus, read)
                 pats = set([r[13] for r in results[seq]])
-                alleles[tuple(locus)][read] = (rstart, pats, 'NA', 'NA', 'NA', strands[read], 'failed (unmatched_motif)')
+                alleles[tuple(locus)][read] = (rstart, pats, 'NA', 'NA', 'NA', strands[read], 'NA', 'failed (unmatched_motif)')
         
         return self.alleles_to_variants(alleles)
 
@@ -1305,7 +1305,7 @@ class TREFinder:
             used_reads = [a[0] for a in variant[3]]
             for read, label in skipped_reads[locus].items():
                 if not read in used_reads:
-                    allele = [read] + ['NA'] * 7 + [label]
+                    allele = [read] + ['NA'] * 8 + [label]
                     variant[3].append(allele)
 
     def add_coverage(self, variant, coverages):
