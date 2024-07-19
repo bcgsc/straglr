@@ -70,4 +70,5 @@ v1.5.1
 - bugfix: size and copy range of alleles only include "full" supporting reads even if partials were included, but "partial" reads will be reported in support counts
 - bugfix: allele motif equivalence checked to perform proper tallying for determining consensus motif in variant
 - used read name as tiebreaker for choosing support read sequence as ALT
+- add extensions (`.fa`, `.blastn`, `.bed`) to temporary files to help debugging
 - `MOTIF` renamed to `RU`, `COPIES` to `REF` in VCF fields

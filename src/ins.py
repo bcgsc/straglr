@@ -456,7 +456,7 @@ class INSFinder:
         for ins in ins_list:
             ins_bed += '{}\n'.format(INS.to_bed(ins, include_read=include_read))
 
-        ins_bed_file = create_tmp_file(ins_bed)
+        ins_bed_file = create_tmp_file(ins_bed, '.bed')
         self.tmp_files.add(ins_bed_file)
 
         return ins_bed_file
@@ -469,7 +469,7 @@ class INSFinder:
         ins_all = BedTool(ins_bed_file)
         ins_merged = ins_all.sort().merge(d=d, c='4,5', o='distinct,count_distinct')
         if self.debug:
-            ins_merged_file = create_tmp_file('')
+            ins_merged_file = create_tmp_file('', '.bed')
             ins_merged.saveas(ins_merged_file)
             print('ins merged {}'.format(ins_merged_file))
 
@@ -516,7 +516,7 @@ class INSFinder:
                 chrom_spans = ''
                 for chrom in sorted(chroms):
                     chrom_spans += '{}\n'.format('\t'.join(map(str, [chrom, 0, chrom_lens[chrom]])))
-                chrom_bed_file = create_tmp_file(chrom_spans)
+                chrom_bed_file = create_tmp_file(chrom_spans, '.bed')
                 self.tmp_files.add(chrom_bed_file)
 
                 chrom_bed = BedTool(chrom_bed_file)

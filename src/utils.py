@@ -35,8 +35,8 @@ def combine_batch_results(batch_results, data_type):
 
     return all_results
 
-def create_tmp_file(content):
-    fd, path = tempfile.mkstemp()
+def create_tmp_file(content, ext=None):
+    fd, path = tempfile.mkstemp(suffix=ext)
     try:
         with os.fdopen(fd, 'w') as out:
             out.write(content)
