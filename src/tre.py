@@ -459,13 +459,14 @@ class TREFinder:
         same_pats = defaultdict(dict)
         if qseqs and tseqs:
             blastn_out = self.align_patterns(qseqs, tseqs)
-            hits = self.parse_pat_blastn(blastn_out)
-            if hits:
-                for query in hits:
-                    for locus in queries.keys():
-                        for hit in hits[query]:
-                            if query in queries[locus] and hit in targets[locus]:
-                                same_pats[locus][query] = hits[query]
+            if blastn_out and os.path.exists(blastn_out):
+                hits = self.parse_pat_blastn(blastn_out)
+                if hits:
+                    for query in hits:
+                        for locus in queries.keys():
+                            for hit in hits[query]:
+                                if query in queries[locus] and hit in targets[locus]:
+                                    same_pats[locus][query] = hits[query]
        
         return same_pats
 
@@ -490,11 +491,12 @@ class TREFinder:
         FNULL = open(os.devnull, 'w')
         returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
 
-        if os.path.exists(blastn_out):
+        if returncode == 0 and os.path.exists(blastn_out):
             return blastn_out
         else:
-            sys.exit('cannot run {}'.format(cmd))
-   
+            print('warning:cannot run {}'.format(cmd))
+            return False
+
     def align_patterns(self, queries, targets, locus=None, word_size=4, min_word_size=4):
         query_fa = ''
         min_len = None
@@ -529,10 +531,11 @@ class TREFinder:
             FNULL = open(os.devnull, 'w')
             returncode = subprocess.call(cmd, shell=True, stdout=FNULL, stderr=FNULL)
 
-            if os.path.exists(blastn_out):
+            if returncode == 0 and os.path.exists(blastn_out):
                 return blastn_out
             else:
-                sys.exit('cannot run {}'.format(cmd))
+                print('warning:cannot run {}'.format(cmd))
+                return False
             
     def parse_pat_blastn(self, blastn_out, min_pid=80, min_alen=0.8):
         matches = defaultdict(set)
@@ -904,7 +907,7 @@ class TREFinder:
                 query_fa += '>{}:{}:{}:{}:{}\n{}\n'.format(read, clipped_end, pstart, pend, len(pseq), pseq)
 
         blastn_out = self.run_blastn_for_missed_clipped(query_fa, target_fa, 6)
-        if os.path.exists(blastn_out):
+        if blastn_out and os.path.exists(blastn_out):
             results = self.parse_blastn(blastn_out)
             if results:
                 by_read = defaultdict(list)
