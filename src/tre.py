@@ -1477,7 +1477,7 @@ class TREFinder:
                         copy_numbers.append(round(allele / len(variant[4]) , 1))
                     else:
                         copy_numbers.append(allele)
-                        sizes.append(allele * len(variant[4]))
+                        sizes.append(round(allele * len(variant[4]), 1))
                     support = len([r for r in variant[3] if r[-1] == allele])
                     supports.append(support)
 
