@@ -706,7 +706,7 @@ class TREFinder:
             else:
                 if self.debug:
                     print('unmatched_motif', locus, read)
-                pats = set([r[13] for r in results[seq]])
+                pats = sorted(set([r[13] for r in results[seq]]))
                 alleles[tuple(locus)][read] = (rstart, pats, 'NA', 'NA', 'NA', strands[read], 'NA', 'failed (unmatched_motif)')
         
         return self.alleles_to_variants(alleles)
