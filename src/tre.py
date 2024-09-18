@@ -16,11 +16,12 @@ from pybedtools import BedTool
 from datetime import datetime
 from .vcf import VCF
 from .version import __version__
+from .cluster import Cluster
 
 class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
-                 max_num_clusters=3, min_cluster_size=2, sex=None, sample='.',
+                 max_num_clusters=2, min_cluster_size=2, max_check_size=5000, sex=None, sample='.',
                  genotype_in_size=False, trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, symbolic=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
@@ -46,12 +47,11 @@ class TREFinder:
         self.min_str_len = min_str_len
 
         self.min_support = min_support
-        self.min_cluster_size = min_cluster_size
-
-        self.tmp_files = set()
 
         # Cluster object for genotyping
-        self.max_num_clusters = max_num_clusters
+        self.clustering = Cluster(min_cluster_size, max_num_clusters, max_check_size)
+
+        self.tmp_files = set()
 
         # report genotype in size instead of copy numbers (default)
         self.genotype_in_size = genotype_in_size
@@ -1203,14 +1203,11 @@ class TREFinder:
                                                        patterns,
                                                        reads_fasta))
 
-        # set genotyping configuration (class variable)
-        Variant.set_genotype_config(min_reads=self.min_cluster_size, max_num_clusters=self.max_num_clusters)
-
         for variant in variants:
             self.add_reads(variant, skipped_reads)
             self.add_coverage(variant, coverages)
             # genotype
-            Variant.genotype(variant, sex=self.sex, report_in_size=self.genotype_in_size)
+            Variant.genotype(variant, self.clustering, sex=self.sex, report_in_size=self.genotype_in_size)
             Variant.summarize_genotype(variant)
 
         # update variant with ref_motif, ref_seq, and gt for vcf
@@ -1443,9 +1440,9 @@ class TREFinder:
     def output_bed(self, variants, out_file):
         headers = Variant.bed_headers
         if variants:
-            max_num_clusters = max(self.max_num_clusters, max([len(v[6]) for v in variants]))
+            max_num_clusters = max(self.clustering.max_num_clusters, max([len(v[6]) for v in variants]))
         else:
-            max_num_clusters = self.max_num_clusters
+            max_num_clusters = self.clustering.max_num_clusters
         for i in range(max_num_clusters):
             for j in ('size', 'copy_number', 'support'):
                 headers.append('allele{}:{}'.format(i+1, j))
