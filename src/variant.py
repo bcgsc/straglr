@@ -1,6 +1,5 @@
 import numpy as np
 from collections import Counter, defaultdict
-from .cluster import Cluster
 from operator import itemgetter
 from .vcf import VCF
 from .utils import is_same_repeat
@@ -31,29 +30,19 @@ class Variant:
     bed_headers = ['chrom', 'start', 'end', 'repeat_unit']
 
     @classmethod
-    def set_genotype_config(cls, method=None, min_reads=None, max_num_clusters=3, eps=None):
-        cls.genotype_config = {'min_reads': 4, 'max_num_clusters': max_num_clusters}
-
-        # minimum number of reads per cluster
-        if min_reads is not None:
-            cls.genotype_config['min_reads'] = min_reads
-
-        cls.clustering = Cluster(cls.genotype_config['min_reads'], cls.genotype_config['max_num_clusters'])
-
-    @classmethod
-    def genotype(cls, variant, sex=None, report_in_size=False):
+    def genotype(cls, variant, clustering, sex=None, report_in_size=False):
         # cluster - always use sizes
         sizes = sorted([a[4] for a in variant[3] if a[-1] == 'full'])
         max_num_clusters = 1 if sex is not None and sex.lower() == 'm' and variant[0] in ('chrX', 'X') else None
-        clusters = cls.clustering.cluster(sizes)
+        clusters = clustering.cluster(sizes)
 
-        # genotype labels: mean of either copy numbers(default) or size
+        # genotype labels: median of either copy numbers(default) or size
         for cluster in clusters:
             if report_in_size:
                 alleles = cluster
             else:
                 alleles = [allele[3] for allele in variant[3] if allele[4] in cluster and allele[-1] == 'full']
-            variant[6].append(round(np.mean(alleles), 1))
+            variant[6].append(round(np.median(alleles), 1))
 
         # assign genotype to each allele
         for allele in variant[3]:
@@ -240,7 +229,7 @@ class Variant:
         gt2 = []
         for g in gt:
             alleles = [a[col] for a in variant[3] if a[-1] == g and a[-1] != '-' and a[-1] != 'NA' and a[-2] == 'full']
-            gt2.append(round(np.mean(alleles), 1))
+            gt2.append(round(np.median(alleles), 1))
         return gt2
     
     @classmethod
