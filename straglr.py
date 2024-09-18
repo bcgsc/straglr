@@ -47,6 +47,8 @@ def parse_args():
     clustering.add_argument("--min_cluster_size", type=float, help="minimum number or fraction of supporting reads for allele clustering. Default:0.1", default=0.1)
     clustering.add_argument("--max_num_clusters", type=int, help="maximum number of clusters to try. Default:2", default=2)
     clustering.add_argument("--max_check_size", type=int, help="threshold of cluster (allele) size (median/mean) to skip filtering by --min_cluster_size. Default:5000", default=5000)
+    clustering.add_argument("--min_cluster_d", type=int, help="minimum separation between clusters. Default:10", default=10)
+    clustering.add_argument("--max_bad_cluster_size", type=int, help="maximum cluster size for checking quality. Default:5", default=5)
 
     args = parser.parse_args()
     return args
@@ -71,8 +73,10 @@ def main():
                            min_support=args.min_support,
                            min_cluster_size=args.min_cluster_size,
                            max_check_size=args.max_check_size,
+                           min_cluster_d=args.min_cluster_d,
                            genotype_in_size=args.genotype_in_size,
                            max_num_clusters=args.max_num_clusters,
+                           max_bad_cluster_size=args.max_bad_cluster_size,
                            use_mean=args.use_mean,
                            trf_args=' '.join(map(str, args.trf_args + ['-d', '-h'])),
                            include_partials=args.include_partials,

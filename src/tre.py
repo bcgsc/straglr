@@ -21,8 +21,9 @@ from .cluster import Cluster
 class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
-                 max_num_clusters=2, min_cluster_size=2, max_check_size=5000, use_mean=False, sex=None, sample='.',
-                 genotype_in_size=False, trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, symbolic=False, debug=False):
+                 max_num_clusters=2, min_cluster_size=2, min_cluster_d=10, max_check_size=5000, max_bad_cluster_size=5,
+                 use_mean=False, sex=None, sample='.', genotype_in_size=False,
+                 trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, symbolic=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
         trf_path = spawn.find_executable("trf")
@@ -49,7 +50,7 @@ class TREFinder:
         self.min_support = min_support
 
         # Cluster object for genotyping
-        self.clustering = Cluster(min_cluster_size, max_num_clusters, max_check_size)
+        self.clustering = Cluster(min_cluster_size, max_num_clusters, min_cluster_d, max_check_size, max_bad_cluster_size)
 
         # use mean cluster value for allele definition
         self.use_mean = use_mean

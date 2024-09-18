@@ -7,17 +7,19 @@ from collections import defaultdict
 import argparse
 
 class Cluster:
-    def __init__(self, min_pts, max_num_clusters=2, max_check_size=5000):
+    def __init__(self, min_pts, max_num_clusters, close_d, max_check_size, max_bad_cluster_size):
         self.min_pts = min_pts
         self.max_num_clusters = max_num_clusters
+        self.close_d = close_d
         self.max_check_size = max_check_size
+        self.max_bad_cluster_size = max_bad_cluster_size
 
     def cluster(self, data):
         if len(data) == 1:
             return [[data[0]]]
         clusters = self.gmm(data, self.max_num_clusters + 4)
 
-        self.merge_clusters(clusters, d=10, max_n=self.max_num_clusters)
+        self.merge_clusters(clusters, close_d=self.close_d, max_n=self.max_num_clusters, max_bad_cluster_size=self.max_bad_cluster_size)
 
         min_pts = len(data) * self.min_pts if self.min_pts < 1 and self.min_pts > 0 else self.min_pts 
         clusters = [c for c in clusters if not (len(c) < min_pts and np.median(c) < self.max_check_size)]
@@ -50,7 +52,7 @@ class Cluster:
 
         return clusters
     
-    def merge_clusters(self, clusters, d=0, close=0.1, max_n=None):
+    def merge_clusters(self, clusters, close_d=0, close=0.1, max_n=None, max_bad_cluster_size=5):
         def remove_bad():
             rms = []
             for i in range(len(clusters)-1,-1,-1):
@@ -60,7 +62,7 @@ class Cluster:
                 median = np.median(cluster)
                 diff = abs(mean - median)
                 if diff > close * mean or diff > close * median:
-                    if len(cluster) <= 5:
+                    if len(cluster) <= max_bad_cluster_size:
                         print('bad', cluster)
                         rms.append(i)
             for i in rms:
@@ -84,7 +86,7 @@ class Cluster:
             for i in range(len(clusters) - 1):
                 j = i + 1
                 sep = clusters[j][0] - clusters[i][-1]
-                if sep <= d:
+                if sep <= close_d:
                     merges.append((i, j))
             return merges
         
@@ -118,7 +120,7 @@ class Cluster:
         remove_bad()
 
         merges = []
-        if d > 0:
+        if close_d > 0:
             merges = merge_close()
             if merges:
                 merge(merges)
