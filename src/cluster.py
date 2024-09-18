@@ -174,12 +174,14 @@ def parse_args():
     parser.add_argument("--min_cluster_size", type=float, help="minimum number or fraction of supporting reads for allele clustering. Default:0.1", default=0.1)
     parser.add_argument("--max_num_clusters", type=int, help="maximum number of clusters to try. Default:2", default=2)
     parser.add_argument("--max_check_size", type=int, help="threshold of cluster (allele) size (median/mean) to skip filtering by --min_cluster_size. Default:5000", default=5000)
+    parser.add_argument("--min_cluster_d", type=int, help="minimum separation between clusters. Default:10", default=10)
+    parser.add_argument("--max_bad_cluster_size", type=int, help="maximum cluster size for checking quality. Default:5", default=5)
     args = parser.parse_args()
     return args
 
 def main():
     args = parse_args()
-    clu = Cluster(args.min_cluster_size, args.max_num_clusters, args.max_check_size)
+    clu = Cluster(args.min_cluster_size, args.max_num_clusters, args.min_cluster_d, args.max_check_size, args.max_bad_cluster_size)
     loci = parse_tsv(args.tsv)
     for locus, sizes in loci.items():
         locus_str = '{}:{}-{}'.format(locus[0], locus[1], locus[2])
