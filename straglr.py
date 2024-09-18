@@ -31,6 +31,7 @@ def parse_args():
     genotyping.add_argument("--loci", type=str, help="bed file of loci for genotyping")
     genotyping.add_argument("--genotype_in_size", action="store_true", help="report genotype in size instead of copy numbers")
     genotyping.add_argument("--include_partials", action='store_true', help="detect and report reads only capturing partial repeats when genotyping")
+    genotyping.add_argument("--use_mean", action="store_true", help="use mean instead of median cluster value for defining allele")
 
     io = parser.add_argument_group('input/output')
     io.add_argument("--sample", type=str, help="sample name for VCF output", default='.')
@@ -72,6 +73,7 @@ def main():
                            max_check_size=args.max_check_size,
                            genotype_in_size=args.genotype_in_size,
                            max_num_clusters=args.max_num_clusters,
+                           use_mean=args.use_mean,
                            trf_args=' '.join(map(str, args.trf_args + ['-d', '-h'])),
                            include_partials=args.include_partials,
                            sample=args.sample,

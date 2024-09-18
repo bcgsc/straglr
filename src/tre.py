@@ -21,7 +21,7 @@ from .cluster import Cluster
 class TREFinder:
     def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
-                 max_num_clusters=2, min_cluster_size=2, max_check_size=5000, sex=None, sample='.',
+                 max_num_clusters=2, min_cluster_size=2, max_check_size=5000, use_mean=False, sex=None, sample='.',
                  genotype_in_size=False, trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, symbolic=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
@@ -50,6 +50,9 @@ class TREFinder:
 
         # Cluster object for genotyping
         self.clustering = Cluster(min_cluster_size, max_num_clusters, max_check_size)
+
+        # use mean cluster value for allele definition
+        self.use_mean = use_mean
 
         self.tmp_files = set()
 
@@ -1207,7 +1210,7 @@ class TREFinder:
             self.add_reads(variant, skipped_reads)
             self.add_coverage(variant, coverages)
             # genotype
-            Variant.genotype(variant, self.clustering, sex=self.sex, report_in_size=self.genotype_in_size)
+            Variant.genotype(variant, self.clustering, use_mean=self.use_mean, sex=self.sex, report_in_size=self.genotype_in_size)
             Variant.summarize_genotype(variant)
 
         # update variant with ref_motif, ref_seq, and gt for vcf
@@ -1507,7 +1510,7 @@ class TREFinder:
                 locus = tuple(map(str, variant[:3]))
                 locus_id = self.locus_id[locus] if locus in self.locus_id else None
                 fail = fails[locus] if locus in fails else None
-                tsv = Variant.to_vcf(variant, self.genotype_in_size, fail=fail, locus_id=locus_id, sex=self.sex, symbolic=self.symbolic)
+                tsv = Variant.to_vcf(variant, self.genotype_in_size, self.use_mean, fail=fail, locus_id=locus_id, sex=self.sex, symbolic=self.symbolic)
                 body += '{}\n'.format(tsv)
                 if self.symbolic:
                     alt = tsv.split('\t')[4]

@@ -30,7 +30,7 @@ class Variant:
     bed_headers = ['chrom', 'start', 'end', 'repeat_unit']
 
     @classmethod
-    def genotype(cls, variant, clustering, sex=None, report_in_size=False):
+    def genotype(cls, variant, clustering, use_mean=False, sex=None, report_in_size=False):
         # cluster - always use sizes
         sizes = sorted([a[4] for a in variant[3] if a[-1] == 'full'])
         max_num_clusters = 1 if sex is not None and sex.lower() == 'm' and variant[0] in ('chrX', 'X') else None
@@ -42,7 +42,10 @@ class Variant:
                 alleles = cluster
             else:
                 alleles = [allele[3] for allele in variant[3] if allele[4] in cluster and allele[-1] == 'full']
-            variant[6].append(round(np.median(alleles), 1))
+            if not use_mean:
+                variant[6].append(round(np.median(alleles), 1))
+            else:
+                variant[6].append(round(np.mean(alleles), 1))
 
         # assign genotype to each allele
         for allele in variant[3]:
@@ -223,13 +226,16 @@ class Variant:
             return '.'
 
     @classmethod
-    def convert_gt(cls, gt, variant, genotype_in_size):
+    def convert_gt(cls, gt, variant, genotype_in_size, use_mean):
         ''' for vcf '''
         col = 3 if genotype_in_size else 4
         gt2 = []
         for g in gt:
             alleles = [a[col] for a in variant[3] if a[-1] == g and a[-1] != '-' and a[-1] != 'NA' and a[-2] == 'full']
-            gt2.append(round(np.median(alleles), 1))
+            if not use_mean:
+                gt2.append(round(np.median(alleles), 1))
+            else:
+                gt2.append(round(np.mean(alleles), 1))
         return gt2
     
     @classmethod
@@ -265,7 +271,7 @@ class Variant:
         gt = cls.get_genotype(variant)
 
     @classmethod
-    def to_vcf(cls, variant, genotype_in_size, vid='.', sex=None, fail=None, locus_id=None, symbolic=False):
+    def to_vcf(cls, variant, genotype_in_size, use_mean, vid='.', sex=None, fail=None, locus_id=None, symbolic=False):
         gt = cls.get_genotype(variant)
         
         gt_larger = [g for g in gt if type(g[0]) is str]
@@ -275,7 +281,7 @@ class Variant:
         gt1 = [g[0] for g in gt_sorted]
         if gt_larger:
             gt1 = [g[0] for g in gt_larger] + gt1
-        gt2 = cls.convert_gt(gt1, variant, genotype_in_size)
+        gt2 = cls.convert_gt(gt1, variant, genotype_in_size, use_mean)
         if gt_larger:
             for i in range(len(gt_larger)):
                 gt2[i] = '>' + str(gt2[i])
