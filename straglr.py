@@ -36,7 +36,6 @@ def parse_args():
     io = parser.add_argument_group('input/output')
     io.add_argument("--sample", type=str, help="sample name for VCF output", default='.')
     io.add_argument("--sex", type=str, help="sex, m(ale) or f(emale)", default='f')
-    io.add_argument("--symbolic", action='store_true', help="output symbolic alleles instead of actual sequences for ALTs in VCF output")
     io.add_argument("--reads_fasta", type=str, nargs='+', help="read indexed fasta file(s)")
     io.add_argument("--nprocs", type=int, help="number of processes", default=1)
     io.add_argument("--tmpdir", type=str, help="directory to use for generating tmp files instead of system TEMP")
@@ -82,7 +81,6 @@ def main():
                            include_partials=args.include_partials,
                            sample=args.sample,
                            sex=sex,
-                           symbolic=args.symbolic,
                            debug=args.debug)
 
     variants = []

@@ -146,86 +146,6 @@ class Variant:
         return list(map(str, cols))
     
     @classmethod
-    def extract_alt_motifs(cls, variant, gt):
-        ''' for vcf '''
-        alts = {}
-        for g in gt:
-            alts[g] = {}
-        ref = variant[8]
-
-        motif_alias = {}
-        for allele in variant[3]:
-            if allele[-1] == 'NA' or 'failed' in allele[-2]:
-                continue
-            motif = allele[2]
-            if motif != ref:
-                if not alts[allele[-1]]:
-                    alts[allele[-1]][motif] = 1
-                else:
-                    same = False
-                    for mm in alts[allele[-1]]:
-                        if is_same_repeat((mm, motif)):
-                            same = True
-                            alts[allele[-1]][mm] += 1
-                            if mm != motif:
-                                motif_alias[motif] = mm
-                            break
-                    # new, not alias of previous
-                    if not same:
-                        alts[allele[-1]][motif] = 1
-
-        am = []
-        for g in gt:
-            if alts[g]:
-                counts = []
-                for motif, count in alts[g].items():
-                    counts.append((motif, count))
-                motifs = []
-                for motif, count in sorted(counts, key=itemgetter(1,0), reverse=True):
-                    motifs.append('{}({})'.format(motif, count))
-                am.append(';'.join(motifs))
-            else:
-                am.append('.')
-        return '/'.join(am), motif_alias
-
-    @classmethod
-    def get_alts(cls, variant, genotype_in_size, motif_alias, symbolic=False):
-        ''' for vcf '''
-        choices = defaultdict(list)
-        for a in variant[3]:
-            if a[9] is None or a[-2] != 'full':
-                continue
-            if a[9] > 0:
-                if genotype_in_size:
-                    diff = abs(a[-1] - a[4])
-                else:
-                    diff = abs(a[-1] - a[3])
-                motif = a[2]
-                if a[2] in motif_alias:
-                    motif = motif_alias[a[2]]
-                choices[a[9]].append((a[0], a[8], diff, motif))
-        
-        alts = []
-        for gt in sorted(choices.keys()):
-            # pick most common motif
-            motifs = [a[3] for a in choices[gt]]
-            motif = Counter(motifs).most_common(1)[0][0]
-
-            choices_sorted = sorted([a for a in choices[gt] if a[3] == motif], key=itemgetter(2,0))
-            rep = choices_sorted[0]
-            if not symbolic:
-                # sequence
-                alt = rep[1]
-            else:
-                # copy number (symbolic)
-                alt = '<TR{}>'.format(int(len(rep[1]) / len(rep[-1])))
-            alts.append(alt)
-        if alts:
-            return ','.join(alts)
-        else:
-            return '.'
-
-    @classmethod
     def convert_gt(cls, gt, variant, genotype_in_size, use_mean):
         ''' for vcf '''
         col = 3 if genotype_in_size else 4
@@ -267,52 +187,27 @@ class Variant:
         return fails
 
     @classmethod
-    def extract_gts(cls, variant, genotype_in_size):
-        gt = cls.get_genotype(variant)
-
-    @classmethod
-    def to_vcf(cls, variant, genotype_in_size, use_mean, vid='.', sex=None, fail=None, locus_id=None, symbolic=False):
-        gt = cls.get_genotype(variant)
+    def to_vcf(cls, variant, genotype_in_size, use_mean, ref_bases, vid='.', sex=None, fail=None, locus_id=None):
+        ref_base = ref_bases[tuple(variant[:3])].upper()
         
-        gt_larger = [g for g in gt if type(g[0]) is str]
-        gt_normal = [g for g in gt if type(g[0]) is not str]
-
-        gt_sorted = sorted(gt_normal, key=itemgetter(0))
-        gt1 = [g[0] for g in gt_sorted]
-        if gt_larger:
-            gt1 = [g[0] for g in gt_larger] + gt1
-        gt2 = cls.convert_gt(gt1, variant, genotype_in_size, use_mean)
-        if gt_larger:
-            for i in range(len(gt_larger)):
-                gt2[i] = '>' + str(gt2[i])
-        
-        supports = [g[1] for g in gt_sorted]
-
-        size_ranges, cn_ranges = cls.get_allele_ranges(gt1, variant)
-
-        (gt_size, gt_cn) = (gt1, gt2) if genotype_in_size else (gt2, gt1)
-
-        # found alt motifs first to find alias
-        alt_motifs, motif_alias = cls.extract_alt_motifs(variant, gt1)
-        has_alt_motifs = True if alt_motifs not in ('.', './.') else False
-        if has_alt_motifs:
-            symbolic = False
-        alts = cls.get_alts(variant, genotype_in_size, motif_alias, symbolic=symbolic)
         qual = '.'
         filter = 'PASS'
         if fail is not None:
             filter = VCF.extract_filter(fail)
             filter = filter[0]
 
+        alts, info_col, format_cols = VCF.extract_variant_genotypes(variant, locus_id, genotype_in_size)
         cols = [variant[0],
                 variant[1],
                 vid,
-                variant[9],
+                ref_base,
                 alts,
                 qual,
                 filter]
-        cols.append(VCF.extract_variant_info(variant, locus_id))
-        cols.extend(VCF.extract_variant_gt(variant, gt_size, gt_cn, supports, size_ranges, cn_ranges, alt_motifs, sex=sex))
+        
+        cols.append(info_col)
+        cols.extend(format_cols)
+
         return '\t'.join(list(map(str, cols)))
 
     @classmethod
@@ -346,20 +241,6 @@ class Variant:
         if genome_starts and genome_ends:
             variant[1] = int(np.median(genome_starts))
             variant[2] = int(np.median(genome_ends))
-
-    @classmethod
-    def summarize_alleles(cls, alleles):
-        reads = []
-        sizes = []
-        cns = []
-        starts = []
-        for allele in alleles:
-            reads.append(allele[0])
-            sizes.append(str(allele[4]))
-            cns.append(str(allele[3]))
-            starts.append(str(allele[1]))
-
-        return ','.join(reads), ','.join(cns), ','.join(sizes), ','.join(starts)
 
 class Allele:
     """

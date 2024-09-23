@@ -23,7 +23,7 @@ class TREFinder:
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
                  max_num_clusters=2, min_cluster_size=2, min_cluster_d=10, max_check_size=5000, max_bad_cluster_size=5,
                  use_mean=False, sex=None, sample='.', genotype_in_size=False,
-                 trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, symbolic=False, debug=False):
+                 trf_args='2 5 5 80 10 10 500 -d -h', include_partials=False, debug=False):
         self.bam = bam
         self.genome_fasta = genome_fasta
         trf_path = spawn.find_executable("trf")
@@ -71,8 +71,6 @@ class TREFinder:
 
         # locus id for vcf
         self.locus_id = {}
-        # output symbolic alleles
-        self.symbolic = symbolic
 
         self.sample = sample
         self.sex = sex.lower() if sex is not None else None
@@ -1289,7 +1287,9 @@ class TREFinder:
 
             if not same_size:
                 same_size = ref_size >= size_ranges[0] * (1-w) and ref_size <= size_ranges[1] * (1+w)
-            same_motif = is_same_repeat((ref_motif, motif))
+            same_motif = True
+            if len(ref_motif) <= 6:
+                same_motif = is_same_repeat((ref_motif, motif))
 
             # reference gt always 0
             if same_size and same_motif:
@@ -1504,25 +1504,24 @@ class TREFinder:
             if chrom in chroms:
                 contigs.append((chrom, length))
 
+        ref_bases = {}
+        for variant in variants:
+            key = tuple(variant[:3])
+            ref_bases[key] = genome_fasta.fetch(variant[0], variant[1] - 1, variant[1])
+
         with open(out_file, 'w') as out:
             body = ''
-            alts = set()
             for variant in sorted(variants, key=itemgetter(0, 1, 2)):
                 locus = tuple(map(str, variant[:3]))
                 locus_id = self.locus_id[locus] if locus in self.locus_id else None
                 fail = fails[locus] if locus in fails else None
-                tsv = Variant.to_vcf(variant, self.genotype_in_size, self.use_mean, fail=fail, locus_id=locus_id, sex=self.sex, symbolic=self.symbolic)
+                tsv = Variant.to_vcf(variant, self.genotype_in_size, self.use_mean, ref_bases, fail=fail, locus_id=locus_id, sex=self.sex)
                 body += '{}\n'.format(tsv)
-                if self.symbolic:
-                    alt = tsv.split('\t')[4]
-                    if alt != '.' and 'TR' in alt:
-                        alts.update([a[1:-1] for a in alt.split(',')])
 
             out.write('{}\n'.format(VCF.show_meta(self.sample,
                                                   num_passes,
                                                   contigs,
                                                   ref=self.genome_fasta,
-                                                  alts=alts,
                                                   source='StraglrV{}'.format(__version__),
                                                   date=datetime.now().strftime("%Y%m%d"),
                                                   fails=fails)))

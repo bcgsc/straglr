@@ -1,23 +1,26 @@
 import re
+from collections import defaultdict, Counter
+from operator import itemgetter
 
 class VCF:
-    file_format = '4.2'
+    file_format = '4.5'
     header = 'CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'
     info = (
             ('LOCUS', 1, 'String', 'Locus ID'),
-            ('END', 1, 'Integer', 'End position of repeat'), 
-            ('RU', 1, 'String', 'Repeat unit in the reference orientation'),
-            ('REF', 1, 'Float', 'Reference copy number')
+            ('RUS_REF', 1, 'String', 'Repeat unit sequence in the reference orientation'),
+            ('SVLEN', 'A', 'Integer', 'Length of structural variant'),
+            ('RN', 'A', 'Integer', 'Total number of repeat sequences in this allele'),
+            ('RUS', '.', 'String', 'Repeat unit sequence of the corresponding repeat sequence'),
+            ('RUL', '.', 'Integer', 'Repeat unit length of the corresponding repeat sequence'),
+            ('RUC', '.', 'Float', 'Repeat unit count of corresponding repeat sequence'),
+            ('RUB', '.', 'Integer', 'Number of bases in each individual repeat unit'),
+            ('RB', '.', 'Integer', 'Total number of bases in the corresponding repeat sequence'),
+            ('CIRUC', '.', 'Float', 'Confidence interval around RUC'),
+            ('CIRB', '.' 'Integer', 'Confidence interval around RB'),
             )
     format = (
               ('GT', 1, 'String', 'Genotype'),
               ('DP', 1, 'Integer', 'Read depth'),
-              ('AL', '.', 'String', 'Allelic lengths'),
-              ('ALR', '.', 'String', 'Allelic length ranges'),
-              ('AC', '.', 'String', 'Allelic copies'),
-              ('ACR', '.', 'String', 'Allelic copy ranges'),
-              ('AD', '.', 'String', 'Allelic depths'),
-              ('ALT_MOTIF', '.', 'String', 'Alternate motif(s)'),
              )
     filters = {
         ('UNMATCHED_MOTIF', 'Unmatched motif'): ('unmatched_motif'),
@@ -42,7 +45,7 @@ class VCF:
         return '\n'.join(lines)
 
     @classmethod
-    def show_meta(cls, sample, num_passes, contigs, ref=None, source=None, date=None, fails=None, alts=[]):
+    def show_meta(cls, sample, num_passes, contigs, ref=None, source=None, date=None, fails=None):
         lines = []
         # fileformat
         lines.append('##fileformat=VCFv{}'.format(cls.file_format))
@@ -82,12 +85,8 @@ class VCF:
         # format
         lines.append(cls.show_info_format('FORMAT', cls.format))
 
-        # alts
-        # for sorting alts numerically (TRxx)
-        regex = r'\d+$'
-        if alts:
-            for alt in sorted(alts, key=lambda x: int(re.findall(regex, x)[0])):
-                lines.append('##ALT=<ID={},Description="Allele comprised of {} repeat units">'.format(alt, alt[2:]))
+        # alt
+        lines.append('##ALT=<ID=CNV:TR,Description="Tandem repeat determined base on DNA abundance">')
 
         # header
         cols = list(cls.header)
@@ -98,47 +97,75 @@ class VCF:
         return '\n'.join(lines)
     
     @classmethod
-    def extract_variant_info(cls, variant, locus_id):
-        pairs = []
+    def extract_variant_genotypes(cls, variant, locus_id, genotype_in_size):
+        def extract_dps():
+            dps = {}
+            for ad in variant[7].split(';'):
+                a, d = ad.rstrip(')').split('(')
+                dps[a] = d
+            return dps
+        
+        # needs to be re-done for complex motif
+        def extract_motifs(alleles, cn=None, size=None):
+            ''' [(motif1, cn1), (motif2, cn2)]'''
+            motifs = [a[2] for a in alleles]
+            motif = Counter(motifs).most_common(1)[0][0]
+            if cn is None and size is not None:
+                cn = size / len(motif)
+            return [(motif, cn)]
+
+        ref_len = variant[2] - variant[1]
+        info = defaultdict(list)
+        genotype = defaultdict(list)
         if locus_id is not None:
-            pairs.append('LOCUS={}'.format(locus_id))
+            info['LOCUS'] = (locus_id,)
+        info['RUS_REF'] = (variant[8],)
+        
+        dps = extract_dps()
+        gts = defaultdict(list)
+        for a in variant[3]:
+            if a[9] is not None:
+                gts[(a[9], a[11])].append(a)
+        print('aa', locus_id, genotype_in_size, variant[4], variant[7], dps, len(gts), gts.keys())
+        gts_sorted = sorted(gts.keys(), key=itemgetter(0))
+        alts = []
+        for gt, allele in gts_sorted:
+            if gt > 0:
+                alts.append('<CNV:TR>')
+                cn, size = None, None
+                if not genotype_in_size:
+                    cn = allele
+                else:
+                    size = allele
+                motifs = extract_motifs(gts[(gt, allele)], cn=cn, size=size)
+                print('mm', motifs)
+                
+                info['RN'].append(len(motifs))
+                info['RUS'].extend([m[0] for m in motifs])
+                info['RB'].extend(['{:.0f}'.format(len(m[0]) * m[1]) for m in motifs])
+                info['SVLEN'].append(ref_len)
 
-        # 2 == chr, 8 == repeat
-        for key, i in zip(cls.info[1:], (2,8,10)):
-            pairs.append('{}={}'.format(key[0], variant[i]))
+            genotype['GT'].append(gt)
+            genotype['DP'].append(dps[str(allele)])
 
-        return ';'.join(pairs)
+        # INFO
+        vals = []
+        for i in cls.info:
+            if i[0] in info:
+                print('qq', i[0], info[i[0]])
+                vals.append('{}:{}'.format(i[0], ','.join(map(str, info[i[0]]))))
+        info_col = ';'.join(vals)
+        print('ii', variant[:3], vals, info_col)
+        
+        # FORMAT
+        vals = []
+        for f in cls.format:
+            if f[0] in genotype:
+                vals.append((f[0], map(str, genotype[f[0]])))
+        format_cols = ['\t'.join((':'.join([v[0] for v in vals]), ':'.join(['/'.join(v[1]) for v in vals])))]
+        print('ff',  variant[:3], vals, format_cols)
 
-    @classmethod
-    def extract_variant_gt(cls, variant, gt_size, gt_cn, supports, size_ranges, cn_ranges, alt_motifs, sex=None):
-        vals = {}
-
-        # 5 = coverage
-        gts = sorted(list(set([a[9] for a in variant[3] if a[9] is not None and a[-2] == 'full'])))
-        if gts:
-            if len(gts) == 1 and (sex is None or sex.lower() == 'f' or (sex.lower() == 'm' and variant[0] not in ('X', 'chrX'))):
-                gts.append(gts[0])
-            vals['GT'] = '/'.join(map(str, gts))
-
-        for label, val in zip(('AL', 'AC', 'AD', 'ALR', 'ACR'), (gt_size, gt_cn, supports, size_ranges, cn_ranges)):
-            if val:
-                val_array = val
-                if len(val) == 1 and (sex is None or sex.lower() == 'f' or (sex.lower() == 'm' and variant[0] not in ('X', 'chrX'))):
-                    val_array.append(val[0])
-                vals[label] = '/'.join(map(str, val_array))
-
-        if variant[5]:
-            vals['DP'] = str(variant[5])
-
-        if alt_motifs:
-            vals['ALT_MOTIF'] = alt_motifs
-
-        format = []
-        for fmt in cls.format:
-            if fmt[0] in vals:
-                format.append(fmt[0])
-
-        return [':'.join(format), ':'.join([vals[field[0]] for field in cls.format if field[0] in vals])]
+        return ','.join(alts), info_col, format_cols
 
     @classmethod
     def extract_filter(cls, mess):
