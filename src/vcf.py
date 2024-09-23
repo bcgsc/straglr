@@ -147,6 +147,7 @@ class VCF:
             if gt > 0:
                 alts.append('<CNV:TR>')
                 info['RN'].append(1)
+                info['RUS'].append(motif)
                 if genotype_in_size:
                     info['RB'].append('{:.0f}'.format(size))
                     info['CIRB'].extend(['{:.0f}'.format(size_diff[0]), '{:.0f}'.format(size_diff[1])])
