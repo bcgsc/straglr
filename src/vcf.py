@@ -106,13 +106,19 @@ class VCF:
             return dps
         
         # needs to be re-done for complex motif
-        def extract_motifs(alleles, cn=None, size=None):
+        def extract_cnvtr(alleles, cn=None, size=None):
             ''' [(motif1, cn1), (motif2, cn2)]'''
             motifs = [a[2] for a in alleles]
             motif = Counter(motifs).most_common(1)[0][0]
+            sizes = [a[4] for a in alleles]
+            cns = [a[3] for a in alleles]
             if cn is None and size is not None:
                 cn = size / len(motif)
-            return [(motif, cn)]
+                cns = [s/len(motif) for s in sizes]
+            elif cn is not None and size is None:
+                size = cn * len(motif)
+                sizes = [c*len(motif) for c in cns]
+            return motif, cn, size, (min(cns), max(cns)), (min(sizes), max(sizes))
 
         ref_len = variant[2] - variant[1]
         info = defaultdict(list)
@@ -125,24 +131,28 @@ class VCF:
         gts = defaultdict(list)
         for a in variant[3]:
             if a[9] is not None:
-                gts[(a[9], a[11])].append(a)
-        print('aa', locus_id, genotype_in_size, variant[4], variant[7], dps, len(gts), gts.keys())
+                gts[(a[9], a[11])].append(a) 
+        
         gts_sorted = sorted(gts.keys(), key=itemgetter(0))
         alts = []
         for gt, allele in gts_sorted:
+            cn, size = None, None
+            if not genotype_in_size:
+                cn = allele
+            else:
+                size = allele
+            motif, cn, size, cn_range, size_range = extract_cnvtr(gts[(gt, allele)], cn=cn, size=size)
+            cn_diff = [c - cn for c in cn_range]
+            size_diff = [s - size for s in size_range]
             if gt > 0:
                 alts.append('<CNV:TR>')
-                cn, size = None, None
-                if not genotype_in_size:
-                    cn = allele
+                info['RN'].append(1)
+                if genotype_in_size:
+                    info['RB'].append('{:.0f}'.format(size))
+                    info['CIRB'].extend(['{:.0f}'.format(size_diff[0]), '{:.0f}'.format(size_diff[1])])
                 else:
-                    size = allele
-                motifs = extract_motifs(gts[(gt, allele)], cn=cn, size=size)
-                print('mm', motifs)
-                
-                info['RN'].append(len(motifs))
-                info['RUS'].extend([m[0] for m in motifs])
-                info['RB'].extend(['{:.0f}'.format(len(m[0]) * m[1]) for m in motifs])
+                    info['RUC'].append('{:.1f}'.format(cn))
+                    info['CIRUC'].extend(['{:.0f}'.format(cn_diff[0]), '{:.0f}'.format(cn_diff[1])])
                 info['SVLEN'].append(ref_len)
 
             genotype['GT'].append(gt)
@@ -152,10 +162,8 @@ class VCF:
         vals = []
         for i in cls.info:
             if i[0] in info:
-                print('qq', i[0], info[i[0]])
                 vals.append('{}:{}'.format(i[0], ','.join(map(str, info[i[0]]))))
         info_col = ';'.join(vals)
-        print('ii', variant[:3], vals, info_col)
         
         # FORMAT
         vals = []
@@ -163,7 +171,6 @@ class VCF:
             if f[0] in genotype:
                 vals.append((f[0], map(str, genotype[f[0]])))
         format_cols = ['\t'.join((':'.join([v[0] for v in vals]), ':'.join(['/'.join(v[1]) for v in vals])))]
-        print('ff',  variant[:3], vals, format_cols)
 
         return ','.join(alts), info_col, format_cols
 
