@@ -19,7 +19,7 @@ from .version import __version__
 from .cluster import Cluster
 
 class TREFinder:
-    def __init__(self, bam, genome_fasta, reads_fasta=None, check_split_alignments=True,
+    def __init__(self, bam, genome_fasta, genotype_flank_size, reads_fasta=None, check_split_alignments=True,
                  max_str_len=50, min_str_len=2, flank_size=100, min_support=2, nprocs=1,
                  max_num_clusters=2, min_cluster_size=2, min_cluster_d=10, max_check_size=5000, max_bad_cluster_size=5,
                  use_mean=False, sex=None, sample='.', genotype_in_size=False,
@@ -31,13 +31,13 @@ class TREFinder:
             sys.exit('ABORT: {}'.format("can't find trf in PATH"))
             
         self.trf_args = trf_args
-        self.flank_len = 2000
 
         self.reads_fasta = reads_fasta
 
         # for checking sequences flanking repeat
         self.trf_flank_min_mapped_fraction = 0.7
         self.trf_flank_size = flank_size
+        self.genotype_flank_size = genotype_flank_size
         self.nprocs = nprocs
 
         self.check_split_alignments = check_split_alignments
@@ -964,7 +964,7 @@ class TREFinder:
         coverages = {}
 
         if self.strict:
-            self.trf_flank_size = 80
+            self.trf_flank_size = self.genotype_flank_size
 
         for locus in loci:
             used_reads = set()
@@ -1211,6 +1211,9 @@ class TREFinder:
             # genotype
             Variant.genotype(variant, self.clustering, use_mean=self.use_mean, sex=self.sex, report_in_size=self.genotype_in_size)
             Variant.summarize_genotype(variant)
+
+        # remove variants for which genotype cannot be established (clustering failed)
+        variants = [v for v in variants if v[6]]
 
         # update variant with ref_motif, ref_seq, and gt for vcf
         self.update_refs(variants, genome_fasta)

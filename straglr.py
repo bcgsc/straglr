@@ -32,6 +32,7 @@ def parse_args():
     genotyping.add_argument("--genotype_in_size", action="store_true", help="report genotype in size instead of copy numbers")
     genotyping.add_argument("--include_partials", action='store_true', help="detect and report reads only capturing partial repeats when genotyping")
     genotyping.add_argument("--use_mean", action="store_true", help="use mean instead of median cluster value for defining allele")
+    genotyping.add_argument("--flank_size", type=int, default=20, help="flanking sequence length to add to loci when genotyping. Default:20")
 
     io = parser.add_argument_group('input/output')
     io.add_argument("--sample", type=str, help="sample name for VCF output", default='.')
@@ -65,6 +66,7 @@ def main():
         sex = 'f'
     tre_finder = TREFinder(args.bam,
                            args.genome_fasta,
+                           args.flank_size,
                            nprocs=args.nprocs,
                            reads_fasta=args.reads_fasta,
                            max_str_len=args.max_str_len,
