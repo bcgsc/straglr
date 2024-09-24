@@ -63,7 +63,6 @@ class Cluster:
                 diff = abs(mean - median)
                 if diff > close * mean or diff > close * median:
                     if len(cluster) <= max_bad_cluster_size:
-                        print('bad', cluster)
                         rms.append(i)
             for i in rms:
                 del clusters[i]
