@@ -21,6 +21,7 @@ class VCF:
     format = (
               ('GT', 1, 'String', 'Genotype'),
               ('DP', 1, 'Integer', 'Read depth'),
+              ('AD', 'R', 'Integer', 'Total read depth for each allele')
              )
     filters = {
         ('UNMATCHED_MOTIF', 'Unmatched motif'): ('unmatched_motif'),
@@ -153,11 +154,14 @@ class VCF:
                     info['CIRB'].extend(['{:.0f}'.format(size_diff[0]), '{:.0f}'.format(size_diff[1])])
                 else:
                     info['RUC'].append('{:.1f}'.format(cn))
-                    info['CIRUC'].extend(['{:.0f}'.format(cn_diff[0]), '{:.0f}'.format(cn_diff[1])])
+                    info['CIRUC'].extend(['{:.1f}'.format(cn_diff[0]), '{:.1f}'.format(cn_diff[1])])
                 info['SVLEN'].append(ref_len)
 
             genotype['GT'].append(gt)
-            genotype['DP'].append(dps[str(allele)])
+            genotype['AD'].append(dps[str(allele)])
+
+        if variant[5]:
+            genotype['DP'].append(variant[5])
 
         # INFO
         vals = []
