@@ -7,7 +7,8 @@ class VCF:
     header = 'CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'
     info = (
             ('LOCUS', 1, 'String', 'Locus ID'),
-            ('RUS_REF', 1, 'String', 'Repeat unit sequence in the reference orientation'),
+            ('RUS_REF', 1, 'String', 'Repeat unit sequence in the reference sequence'),
+            ('RUL_REF', 1, 'String', 'Repeat unit length in the reference sequence'),
             ('SVLEN', 'A', 'Integer', 'Length of structural variant'),
             ('RN', 'A', 'Integer', 'Total number of repeat sequences in this allele'),
             ('RUS', '.', 'String', 'Repeat unit sequence of the corresponding repeat sequence'),
@@ -121,12 +122,15 @@ class VCF:
                 sizes = [c*len(motif) for c in cns]
             return motif, cn, size, (min(cns), max(cns)), (min(sizes), max(sizes))
 
-        ref_len = variant[2] - variant[1]
+        ref_len = len(variant[9])
         info = defaultdict(list)
         genotype = defaultdict(list)
         if locus_id is not None:
             info['LOCUS'] = (locus_id,)
-        info['RUS_REF'] = (variant[8],)
+        if len(variant[8]) <= 6:
+            info['RUS_REF'] = (variant[8],)
+        else:
+            info['RUL_REF'] = (len(variant[8]),)
         
         dps = extract_dps()
         gts = defaultdict(list)
@@ -148,7 +152,11 @@ class VCF:
             if gt > 0:
                 alts.append('<CNV:TR>')
                 info['RN'].append(1)
-                info['RUS'].append(motif)
+                # RUS for STR, RUL for VNTR
+                if len(motif) <= 6:
+                    info['RUS'].append(motif)
+                else:
+                    info['RUL'].append(len(motif))
                 if genotype_in_size:
                     info['RB'].append('{:.0f}'.format(size))
                     info['CIRB'].extend(['{:.0f}'.format(size_diff[0]), '{:.0f}'.format(size_diff[1])])
