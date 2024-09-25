@@ -1205,6 +1205,10 @@ class TREFinder:
                                                        patterns,
                                                        reads_fasta))
 
+        # update variant with ref_motif, ref_seq, and gt for vcf
+        # update motif before defining genotype
+        self.update_refs(variants, genome_fasta)
+
         for variant in variants:
             self.add_reads(variant, skipped_reads)
             self.add_coverage(variant, coverages)
@@ -1215,8 +1219,8 @@ class TREFinder:
         # remove variants for which genotype cannot be established (clustering failed)
         variants = [v for v in variants if v[6]]
 
-        # update variant with ref_motif, ref_seq, and gt for vcf
-        self.update_refs(variants, genome_fasta)
+        for variant in variants:
+            self.assign_alts(variant)
 
         if self.remove_tmps:
             self.cleanup()
@@ -1245,11 +1249,15 @@ class TREFinder:
                 else:
                     # ref not repeat?
                     variant.extend(['.', ref_seqs[locus], '.'])
+                if is_same_repeat((variant[8], variant[4])):
+                    variant[4] = variant[8]
                 # make allele motif same as ref if they are same
                 for a in variant[3]:
                     if is_same_repeat((variant[8], a[2])):
                         a[2] = variant[8]
-                self.assign_alts(variant)
+                        # update copy number if motif changed
+                        if type(a[4]) is not str:
+                            a[3] = a[4] / len(a[2])
 
         if self.remove_tmps:
             self.cleanup()

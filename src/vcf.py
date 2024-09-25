@@ -111,8 +111,8 @@ class VCF:
             ''' [(motif1, cn1), (motif2, cn2)]'''
             motifs = [a[2] for a in alleles]
             motif = Counter(motifs).most_common(1)[0][0]
-            sizes = [a[4] for a in alleles]
-            cns = [a[3] for a in alleles]
+            sizes = [int(a[4]) for a in alleles]
+            cns = [float(a[3]) for a in alleles]
             if cn is None and size is not None:
                 cn = size / len(motif)
                 cns = [s/len(motif) for s in sizes]

@@ -276,6 +276,8 @@ class Allele:
     @classmethod
     def to_tsv(cls, cols):
         # __init__ input order to output order
+        if type(cols[3]) is not str:
+            cols[3] = '{:.1f}'.format(cols[3])
         cols_ordered = [cols[0],
                         cols[2],
                         cols[3],
