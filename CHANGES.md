@@ -72,3 +72,8 @@ v1.5.1
 - used read name as tiebreaker for choosing support read sequence as ALT
 - add extensions (`.fa`, `.blastn`, `.bed`) to temporary files to help debugging
 - `MOTIF` renamed to `RU`, `COPIES` to `REF` in VCF fields
+
+v1.5.2
+- post-processing of GMM clustering results modified
+- VCFv4.5 on tandem repeats (`<CNV:TR>`) followed
+
