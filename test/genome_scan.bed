@@ -1,2 +1,2 @@
 #chrom	start	end	repeat_unit	allele1:size	allele1:copy_number	allele1:support	allele2:size	allele2:copy_number	allele2:support
-chr22	45795355	45795424	ATTCT	1934.0	386.8	12	-	-	-
+chr22	45795355	45795424	TTCTA	1953.0	390.6	4	1929.5	385.9	8
