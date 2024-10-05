@@ -138,7 +138,7 @@ def merge_blocks(blocks, pat, seq):
                     to_merge = True
 
             # larger gaps, try fill with combinations of partials
-            elif len(pat) > 3 and gap_len > len(pat) and gap_len <= len(pat) * 3 and set(gap_seq) == set(pat):
+            elif len(pat) > 3 and gap_len > len(pat) and gap_len <= len(pat) * 3:
                 if partials is None:
                     partials = get_partials(pat)
                 filled = fill_gaps(gap_seq, pat)
@@ -146,7 +146,7 @@ def merge_blocks(blocks, pat, seq):
                 if filled:
                     filled_start = blocks[j - 1][1] + filled[-2]
                     filled_end = blocks[j - 1][1] + filled[-1]
-                    print('gg2', gap_seq, blocks[j - 1][1], blocks[j][0], filled_start, filled_end)
+                    print('gg2', gap_seq, blocks[j - 1], blocks[j], filled_start, filled_end)
                     if filled_start == blocks[j - 1][1] and filled_end == blocks[j][0]:
                         copies += filled[-3]
                         to_merge = True
@@ -157,7 +157,7 @@ def merge_blocks(blocks, pat, seq):
                         blocks[j][0] = filled_start
                         blocks[j][2] += filled[-3]
                     else:
-                        merged.append((filled_start, filled_end))
+                        merged.append([filled_start, filled_end, filled[-3]])
             
             if to_merge:
                 merged_set.add(tuple(blocks[j]))
@@ -169,11 +169,11 @@ def merge_blocks(blocks, pat, seq):
         if end is not None:
             for n in range(i, end + 1, 1):
                 copies += blocks[n][2]
-            merged.append((blocks[i][0], blocks[end][1], copies))
+            merged.append([blocks[i][0], blocks[end][1], copies])
             end = None
         i = j
 
-    unmerged = [b for b in sorted(list(set([tuple(b) for b in blocks]) - merged_set))]
+    unmerged = [list(b) for b in sorted(list(set([tuple(b) for b in blocks]) - merged_set))]
     return sorted(merged + unmerged, key=itemgetter(0))
 
 def find_seeds(matches, k, n=2):
@@ -281,6 +281,17 @@ def fill_gaps(seq, pat):
     else:
         return None
 
+def merge_blocks_multiple(blocks_start, pat, seq, name=None):
+    blocks = blocks_start
+    blocks_merged = []
+    n = 0
+    while blocks_merged != blocks:
+        if blocks_merged:
+            blocks = blocks_merged 
+        blocks_merged = merge_blocks(blocks, pat, seq)
+        n += 1
+    print('multi', name, pat, n)
+    return blocks_merged
 
 def extract_pats(seq, kmers, name=None):
     pats = []
@@ -301,46 +312,22 @@ def extract_pats(seq, kmers, name=None):
         if len(seeds) > 1:
             start_index = blocks.index(seeds[0])
             end_index = blocks.index(seeds[-1])
-            #d = blocks[end_index][0] - blocks[start_index][1]
-            #print('ff', name, start_index, end_index, d)
             
             blocks_between = blocks[start_index:end_index + 1]
             print('ww', name, start_index, end_index, blocks_between)
-            seeds_merged = merge_blocks(blocks_between, pat, seq)
+
+            #seeds_merged = merge_blocks(blocks_between, pat, seq)
+            #print('qq', name, pat, seeds_merged)
+
+            seeds_merged = merge_blocks_multiple(blocks_between, pat, seq, name=name)
             print('qq', name, pat, seeds_merged)
+            seeds = seeds_merged
         
-            #if len(seeds_merged) > 1:
-                
+        copies = sum([s[2] for s in seeds])
+        start = min([s[0] for s in seeds])
+        end = max([s[1] for s in seeds])
+        print('zz', name, pat, copies, start, end, seeds)
         
-        
-        continue
-
-
-        reps = blocks
-        #if len(blocks) > 1:
-        reps = merge_blocks(blocks, pat, seq)
-        #all_matches[pat] = matches
-        if not starts:
-            continue
-        #print('gg1', pat, starts)
-        #print('gg2', pat, matches)
-
-        seeds = find_seeds(reps, len(pat))
-        #print('gg3', pat, seeds)
-        if seeds:
-            for seed in seeds:
-                all_seeds.append((pat, seed[0], seed[1], seed[2]))
-
-    #for pat, start, end in sorted(all_seeds, key=itemgetter(1,2)):
-    #    print('ss', pat, start, end)
-    combined_pats = combine_pats(all_seeds, seq)
-
-    #fill_gaps(combined_pats, seq)
-
-    #for p in combined_pats:
-    #    print('rep', p, seq[p[1]:p[2]])
-
-    return combined_pats
 
 kmers = []
 for k in range(2,7,1):
