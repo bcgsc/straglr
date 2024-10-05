@@ -114,12 +114,12 @@ def merge_blocks(blocks, pat, seq):
         while j < len(blocks):
             to_merge = False
             gap_seq = seq[blocks[j - 1][1]:blocks[j][0]]
-            d = blocks[j][0] - blocks[j - 1][1]
+            gap_len = blocks[j][0] - blocks[j - 1][1]
             # one base gaps (ins)
-            if d < 2:
+            if gap_len < 2:
                 to_merge = True
             # small indels
-            elif d < len(pat):
+            elif gap_len < len(pat):
                 filled = False
                 if len(gap_seq) < len(pat):
                     if partials is None:
@@ -138,11 +138,11 @@ def merge_blocks(blocks, pat, seq):
                     to_merge = True
 
             # larger gaps, try fill with combinations of partials
-            elif len(pat) > 3 and d > len(pat) and d <= len(pat) * 5:
+            elif len(pat) > 3 and gap_len > len(pat) and gap_len <= len(pat) * 3 and set(gap_seq) == set(pat):
                 if partials is None:
                     partials = get_partials(pat)
                 filled = fill_gaps(gap_seq, pat)
-                print('gg', d, gap_seq, pat, blocks[j - 1][1], blocks[j][0], filled)
+                print('gg', gap_len, gap_seq, pat, blocks[j - 1][1], blocks[j][0], filled)
                 if filled:
                     filled_start = blocks[j - 1][1] + filled[-2]
                     filled_end = blocks[j - 1][1] + filled[-1]
