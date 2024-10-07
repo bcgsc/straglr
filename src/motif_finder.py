@@ -270,6 +270,11 @@ def fill_gaps(seq, pat):
             if len(same_starts) != len(subset):
                 continue
 
+            # all dimers
+            lens = list(set([len(s) for s in subset]))
+            if len(lens) == 1 and lens[0] <= 2:
+                continue
+
             for order in permutations(subset):
                 #print('ee', subset, order)
                 test_seq = ''.join(order)
@@ -299,6 +304,22 @@ def merge_blocks_multiple(blocks_start, pat, seq, name=None):
     print('multi', name, pat, n)
     return blocks_merged
 
+def extend_blocks(seeds, blocks, pat, seq, before=True, name=None):
+    blocks_iter = blocks if not before else blocks[::-1]
+    block_bound = seeds[-1] if not before else seeds[0]
+
+    blocks_extended = []
+    for block_iter in blocks_iter:
+        blocks_test = sorted([block_iter, block_bound], key=itemgetter(0))
+        blocks_merged = merge_blocks(blocks_test, pat, seq)
+        if blocks_merged != blocks_test:
+            print('yy2', name, pat, seeds, blocks, blocks_test, seq[blocks_test[0][1]:blocks_test[1][0]], pat, blocks_merged)
+            blocks_extended.append(block_iter)
+            block_bound = block_iter
+        else:
+            break
+    return sorted(blocks_extended, key=itemgetter(0))
+
 def extract_pats(seq, kmers, name=None):
     pats = []
     #print('ss', seq)
@@ -315,20 +336,51 @@ def extract_pats(seq, kmers, name=None):
         
         print('uu', name, pat, len(seeds), seeds)
 
-        if len(seeds) > 1:
+        if seeds:
             start_index = blocks.index(seeds[0])
             end_index = blocks.index(seeds[-1])
-            
-            blocks_between = blocks[start_index:end_index + 1]
-            print('ww', name, start_index, end_index, blocks_between)
 
-            #seeds_merged = merge_blocks(blocks_between, pat, seq)
-            #print('qq', name, pat, seeds_merged)
+            # extensions
+            blocks_before = [blocks[i] for i in range(len(blocks)) if i < start_index]
+            blocks_after = [blocks[i] for i in range(len(blocks)) if i > end_index]
+            blocks_extended_before = []
+            blocks_extended_after = []
+            if blocks_before:
+                blocks_extended_before = extend_blocks(seeds, blocks_before, pat, seq, before=True, name=name)
+                if blocks_extended_before:
+                    print('yy before', name, pat, seeds, blocks_extended_before, start_index, blocks.index(blocks_extended_before[0]))
+            if blocks_after:
+                blocks_extended_after = extend_blocks(seeds, blocks_after, pat, seq, before=False, name=name)
+                if blocks_extended_after:
+                    print('yy after', name, pat, seeds, blocks_extended_after, end_index, blocks.index(blocks_extended_after[-1]))
+       
+            if blocks_extended_before or blocks_extended_after:
+                print('ee', name, pat, seeds, 'bf', blocks_extended_before, 'af', blocks_extended_after, 'new', blocks_extended_before + seeds + blocks_extended_after)
+            seeds = blocks_extended_before + seeds + blocks_extended_after
+            start_index = blocks.index(seeds[0])
+            end_index = blocks.index(seeds[-1])
 
-            seeds_merged = merge_blocks_multiple(blocks_between, pat, seq, name=name)
-            print('qq', name, pat, seeds_merged)
-            seeds = seeds_merged
-        
+            if len(seeds) > 1:
+                blocks_between = blocks[start_index:end_index + 1]
+                print('ww', name, start_index, end_index, blocks_between)
+
+                seeds_merged = merge_blocks_multiple(blocks_between, pat, seq, name=name)
+                print('qq', name, pat, seeds_merged)
+                seeds = seeds_merged
+
+            '''
+            blocks_before = [blocks[i] for i in range(len(blocks)) if i < start_index]
+            if blocks_before:
+                blocks_extended = extend_blocks(seeds, blocks_before, pat, seq, before=True, name=name)
+                if blocks_extended:
+                    print('yy before', name, pat, seeds, blocks_extended, start_index, blocks.index(blocks_extended[0]))
+            blocks_after = [blocks[i] for i in range(len(blocks)) if i > end_index]
+            if blocks_after:
+                blocks_extended = extend_blocks(seeds, blocks_after, pat, seq, before=False, name=name)
+                if blocks_extended:
+                    print('yy after', name, pat, seeds, blocks_extended, end_index, blocks.index(blocks_extended[-1]))
+            '''
+
         copies = sum([s[2] for s in seeds])
         start = min([s[0] for s in seeds])
         end = max([s[1] for s in seeds])
