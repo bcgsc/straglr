@@ -22,7 +22,6 @@ def get_kmers(k):
             continue
         perms = permute(kmer)
         uniq_kmers = uniq_kmers - set(perms)
-    #print(len(kmers), len(uniq_kmers))
     return list(uniq_kmers)
 
 def find_matches(seq, kmer):
@@ -96,6 +95,7 @@ def trim_ins(seq):
             if i not in skips:
                 motif += seq[i]
         motifs.add(motif)
+
     return sorted(list(motifs), key=lambda s: (-len(s), s))
 
 def merge_blocks(blocks, pat, seq):
@@ -115,38 +115,38 @@ def merge_blocks(blocks, pat, seq):
             to_merge = False
             gap_seq = seq[blocks[j - 1][1]:blocks[j][0]]
             gap_len = blocks[j][0] - blocks[j - 1][1]
+            filled = False
             # one base gaps (ins)
             if gap_len < 2:
+                filled = True
                 to_merge = True
             # small indels
             elif gap_len < len(pat):
-                filled = False
-                if len(gap_seq) < len(pat):
-                    if partials is None:
-                        partials = get_partials(pat)
-                    #print('hh', gap_seq, pat, partials)
-                    if gap_seq.upper() in partials:
-                        filled = True
-                if len(gap_seq) > len(pat) and len(gap_seq) < 2 * len(pat):
-                    if trimmed is None:
-                        trimmed = trim_ins(gap_seq)
-                    if pat.upper() in trimmed:
-                        filled = True
-
-                if filled:
+                if partials is None:
+                    partials = get_partials(pat)
+                if gap_seq.upper() in partials:
+                    filled = True
+                    copies += 1
+                    to_merge = True
+            
+            elif gap_len > len(pat) and gap_len < 2 * len(pat):
+                if trimmed is None:
+                    trimmed = trim_ins(gap_seq)
+                if pat.upper() in trimmed:
+                    filled = True
                     copies += 1
                     to_merge = True
 
             # larger gaps, try fill with combinations of partials
-            elif len(pat) > 3 and gap_len > len(pat) and gap_len <= len(pat) * 3:
+            if not filled and len(pat) > 3 and gap_len > len(pat) and gap_len <= len(pat) * 3:
                 if partials is None:
                     partials = get_partials(pat)
                 filled = fill_gaps(gap_seq, pat)
                 print('gg', gap_len, gap_seq, pat, blocks[j - 1][1], blocks[j][0], filled)
-                if filled:
+                if filled and filled[1] == 0:
                     filled_start = blocks[j - 1][1] + filled[-2]
                     filled_end = blocks[j - 1][1] + filled[-1]
-                    print('gg2', gap_seq, blocks[j - 1], blocks[j], filled_start, filled_end)
+                    print('gg2', gap_seq, pat, blocks[j - 1], blocks[j], filled_start, filled_end, filled)
                     if filled_start == blocks[j - 1][1] and filled_end == blocks[j][0]:
                         copies += filled[-3]
                         to_merge = True
@@ -264,6 +264,12 @@ def fill_gaps(seq, pat):
             # homopolymer
             if len(set(subset)) == 1 and len(set(subset[0])) == 1:
                 continue
+
+            # start base must be the same
+            same_starts = [s for s in subset if s[0].upper() == pat[0].upper()]
+            if len(same_starts) != len(subset):
+                continue
+
             for order in permutations(subset):
                 #print('ee', subset, order)
                 test_seq = ''.join(order)
@@ -328,6 +334,9 @@ def extract_pats(seq, kmers, name=None):
         end = max([s[1] for s in seeds])
         print('zz', name, pat, copies, start, end, seeds)
         
+        for i in range(len(seeds)-1):
+            ss = seq[seeds[i][1]:seeds[i+1][0]]
+            print('ww', name, pat, seeds[i], seeds[i+1], ss)
 
 kmers = []
 for k in range(2,7,1):
