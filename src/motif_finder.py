@@ -14,35 +14,32 @@ def permute(kmer):
     return perms[1:]
 
 def get_kmers(k):
-    bases = ['A', 'G', 'T', 'C']
+    bases = ['C', 'A', 'G', 'T']
     kmers = [''.join(p) for p in itertools.product(bases, repeat=k)]
     uniq_kmers = set(kmers)
+    '''
     for kmer in kmers:
         if not kmer in uniq_kmers:
             continue
         perms = permute(kmer)
         uniq_kmers = uniq_kmers - set(perms)
-    return list(uniq_kmers)
+    '''
+    return [k for k in uniq_kmers if len(set(k)) > 1]
+    #return list(uniq_kmers)
 
 def find_matches(seq, kmer):
     return [m.start() for m in re.finditer(kmer, seq)]
 
-'''
-def subtract_spans(l, spans):
-    left = []
+def get_holes(spans):
+    ''' used by fill_repeat() '''
+    holes = []
 
-    for i in range(len(spans)):
-        if i == 0 and spans[i][0] > 0:
-            left.append([0, spans[i][0] - 1])
+    for i in range(len(spans) - 1):
+        j = i + 1
+        holes.append([spans[i][1], spans[j][0]])
 
-        if i < len(spans) - 1:
-            left.append([spans[i][1] + 1, spans[i + 1][0] -1])
+    return holes
 
-        if i == len(spans) - 1 and spans[i][1] < l - 1:
-            left.append([spans[i][1] + 1, l - 1])
-
-    return left
-'''
 def merge_matches(starts, k):
     merged = []
     merged_set = set()
@@ -179,75 +176,26 @@ def merge_blocks(blocks, pat, seq):
 def find_seeds(matches, k, n=2):
     return [m for m in matches if (m[1] - m[0]) / k >= n]
 
-def combine_pats(matches, seq):
-    matches_sorted = sorted(matches, key=itemgetter(1,2))
-    combined_pats = []
-    for i in range(len(matches_sorted)):
-        pat, start, end, gap_size = matches_sorted[i]
-        #copies = (end - start) / len(pat)
-        copies = seq[start:end].upper().count(pat.upper())
-        match = pat, start, end, copies, gap_size
-        combined_pats.append(match)
-    return combined_pats
+def fill_repeat(repeat, other_matches, seq, name=None):
+    others = defaultdict(list)
+    for pat in other_matches.keys():
+        for match in other_matches[pat]:
+            span = (match[0], match[1])
+            others[span].append(match + [pat])
 
-def combine_pats_old(matches):
-    matches_sorted = sorted(matches, key=itemgetter(1,2))
-    combined = []
-    for i in range(len(matches_sorted)):
-        check_before = False
-        check_after = False
-        pat, start, end, gap_size = matches_sorted[i]
-        copies = (end - start) / len(pat)
-        #match = pat, start, end, copies
-
-        if i == 0:
-            check_before = True
-        elif matches_sorted[i][1] >= matches_sorted[i - 1][2]:
-            check_before = True
+    holes = get_holes(repeat)
+    filled = []
+    for hole in holes:
+        hole_span = tuple(hole)
+        hole_seq = seq[hole[0]:hole[1]].upper()
+        #print('hh0', name, repeat, hole, hole_seq)
+        if hole[1] - hole[0] > 1 and hole_span in others:
+            #print('hh', name, hole, hole_seq, others[hole_span])
+            # add in copies and pat
+            filled.append(hole + others[hole_span][0][2:])
         else:
-            diff = matches_sorted[i - 1][2] - matches_sorted[i][1]
-            motif_before = matches_sorted[i - 1][0]
-            motif_current =  matches_sorted[i][0]
-            print('cc1', matches_sorted[i], matches_sorted[i - 1], diff, motif_current, motif_before)
-            # current motif is an extension of the previous motif
-            if len(motif_current) > len(motif_before):
-                print('rr', motif_current[:diff], motif_current[:diff][-1 * len(motif_before):])
-                if motif_current[:diff][-1 * len(motif_before):].upper() == motif_before.upper():
-                    print('rra')
-                    check_before = True
-            # previous motif is an extension of the current motif
-            else:
-                #print('vv1', diff, matches_sorted[i - 1][0][-1 * diff:], matches_sorted[i - 1][0], matches_sorted[i][0])
-                if matches_sorted[i - 1][0][-1 * diff:].upper() == matches_sorted[i][0].upper():
-                    check_before = True
-
-        if i == len(matches) - 1:
-            check_after = True
-        elif matches_sorted[i + 1][1] >= matches_sorted[i][2]:
-            check_after = True
-        else:
-            diff = matches_sorted[i][2] - matches_sorted[i + 1][1]
-            motif_after = matches_sorted[i + 1][0]
-            motif_current =  matches_sorted[i][0]
-            print('cc2', matches_sorted[i], matches_sorted[i + 1], diff, motif_current, motif_after)
-            if len(motif_current) > len(motif_after):
-                print('rr2', motif)
-                if matches_sorted[i + 1][0][-1 * diff][:len(matches_sorted[i][0])].upper() == matches_sorted[i][0].upper():
-                    print('rr2a')
-                    #end -= len(pat)
-                    #copies -= 1
-                    check_after = True
-            elif len(matches_sorted[i + 1][0]) < len(matches_sorted[i][0]):
-                #print('vv2', diff, matches_sorted[i][0][-1 * diff:], matches_sorted[i][0], matches_sorted[i + 1][0])
-                if matches_sorted[i][0][-1 * diff:].upper() == matches_sorted[i + 1][0].upper():
-                    check_after = True
-
-        match = pat, start, end, copies
-        if check_before and check_after:
-            combined.append(match)
-
-    #print('ww', combined)
-    return combined
+            filled.append(hole + [1, hole_seq])
+    return filled            
 
 def fill_gaps(seq, pat):
     #print(seq, pat)
@@ -320,23 +268,16 @@ def extend_blocks(seeds, blocks, pat, seq, before=True, name=None):
             break
     return sorted(blocks_extended, key=itemgetter(0))
 
-def extract_pats(seq, kmers, name=None):
-    pats = []
-    #print('ss', seq)
-    all_seeds = []
-    all_matches = {}
-    for pat in kmers:
-        starts = find_matches(seq, pat)
-        if not starts:
-            continue
+def get_seeds(seq, pat, name=None):
+    seeds = []
+    blocks = []
+    starts = find_matches(seq, pat)
+    if starts:
         blocks = merge_matches(starts, len(pat))
         seeds = find_seeds(blocks, len(pat), n=3)
-        if not seeds:
-            continue
-        
-        print('uu', name, pat, len(seeds), seeds)
 
         if seeds:
+            print('uu', name, pat, len(seeds), seeds)
             start_index = blocks.index(seeds[0])
             end_index = blocks.index(seeds[-1])
 
@@ -368,43 +309,85 @@ def extract_pats(seq, kmers, name=None):
                 print('qq', name, pat, seeds_merged)
                 seeds = seeds_merged
 
-            '''
-            blocks_before = [blocks[i] for i in range(len(blocks)) if i < start_index]
-            if blocks_before:
-                blocks_extended = extend_blocks(seeds, blocks_before, pat, seq, before=True, name=name)
-                if blocks_extended:
-                    print('yy before', name, pat, seeds, blocks_extended, start_index, blocks.index(blocks_extended[0]))
-            blocks_after = [blocks[i] for i in range(len(blocks)) if i > end_index]
-            if blocks_after:
-                blocks_extended = extend_blocks(seeds, blocks_after, pat, seq, before=False, name=name)
-                if blocks_extended:
-                    print('yy after', name, pat, seeds, blocks_extended, end_index, blocks.index(blocks_extended[-1]))
-            '''
+            copies = sum([s[2] for s in seeds])
+            start = min([s[0] for s in seeds])
+            end = max([s[1] for s in seeds])
+            print('zz', name, pat, copies, start, end, seeds)
 
-        copies = sum([s[2] for s in seeds])
-        start = min([s[0] for s in seeds])
-        end = max([s[1] for s in seeds])
-        print('zz', name, pat, copies, start, end, seeds)
+    return seeds, blocks
+
+def split_seeds(seeds, f=0.1):
+    groups = []
+    starts = [0]
+    seeds_span = seeds[-1][1] - seeds[0][0]
+    max_gap_size = f * seeds_span
+    for i in range(len(seeds)-1):
+        gap_size = seeds[i+1][0] - seeds[i][1]
+        if gap_size > max_gap_size:
+            starts.append(i+1)
+    starts.append(len(seeds))
+    for i in range(len(starts)):
+        if i == len(starts) - 1:
+             break
+        group = seeds[starts[i]:starts[i+1]]
+        groups.append(group)
+    return groups
+
+def extract_pats(seq, kmers, name=None):
+    def add_pat(matches, pat):
+        [m.append(pat) for m in matches]
+    
+    all_matches = {}
+    all_repeats = []
+    for pat in kmers:
+        seeds, matches = get_seeds(seq, pat, name=name)
+        all_matches[pat] = matches
+        if not seeds:
+            continue
         
-        for i in range(len(seeds)-1):
-            ss = seq[seeds[i][1]:seeds[i+1][0]]
-            print('ww', name, pat, seeds[i], seeds[i+1], ss)
+        # break up seeds that are too far apart (not necessary if only no flanking sequences given)
+        # skip dimer seeds
+        if len(pat) > 2:
+            seeds_split = split_seeds(seeds)
+            [add_pat(seed, pat) for seed in seeds_split]
+            all_repeats.extend(seeds_split)
+
+    repeats_spans = [(r[-1][1] - r[0][0], r) for r in all_repeats]
+    repeats_spans.sort(key=itemgetter(0), reverse=True)
+    for span, repeat in repeats_spans:
+        print('tt', name, repeat, span)
+        #continue
+        filled_holes = fill_repeat(repeat, all_matches, seq, name=name)
+        #print('nn', name, repeat, filled_holes)
+        repeat_filled = sorted(repeat + filled_holes, key=itemgetter(0))
+        print('ff', name, repeat_filled)
 
 kmers = []
-for k in range(2,7,1):
-    kmers.extend(get_kmers(k))
+max_k = 6
+exclude = []
+for k in range(2, max_k + 1,1):
+    multiples = []
+    for m in range(k + 1, max_k + 1, 1):
+        if m % k == 0 and k != max_k:
+            multiples.append(int(m/k))
+    ks = get_kmers(k)
+    if multiples:
+        for m in multiples:
+            exclude.extend([k * m for k in ks])
+    kmers.extend(ks)
     #for pat in get_kmers(k):
     #    print(pat)
-#kmers = get_kmers(4)
+kmers = sorted(list(set(kmers) - set(exclude)))
+#kmers = get_kmers(3)
 #kmers = ['AGGC']
-
+'''
 fa = pysam.FastaFile('/projects/btl/rchiu/jira/BTL-2134/test.fa')
 name = 'ATXN10.HG01961.p1'
 seq = fa.fetch(name)
 
 fa_file = '/projects/btl/rchiu/jira/BTL-2147/tmp/tmptohjf5_5.fa'
 fa_file = '/projects/btl/rchiu/jira/BTL-2147/tmp2/tmpdlcik4ss.fa'
-
+'''
 fa_file = sys.argv[1]
 fa = pysam.FastaFile(fa_file)
 
