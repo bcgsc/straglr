@@ -6,6 +6,7 @@ from collections import defaultdict, Counter
 import sys
 from itertools import chain, combinations, combinations_with_replacement, permutations, product
 from pybedtools import BedTool
+import math
 
 def permute(kmer):
     perms = []
@@ -97,86 +98,23 @@ def trim_ins(seq):
 
     return sorted(list(motifs), key=lambda s: (-len(s), s))
 
-def merge_blocks(blocks, pat, seq):
-    ''' indels '''
-    merged = []
-    merged_set = set()
-    i = 0
-    end = None
-
-    partials = None
-    trimmed = None
-
-    while i < len(blocks):
-        copies = 0
-        j = i + 1
-        while j < len(blocks):
-            to_merge = False
-            gap_seq = seq[blocks[j - 1][1]:blocks[j][0]]
-            gap_len = blocks[j][0] - blocks[j - 1][1]
-            filled = False
-            # one base gaps (ins)
-            if gap_len < 2:
-                filled = True
-                to_merge = True
-            # small indels
-            elif gap_len < len(pat):
-                if partials is None:
-                    partials = get_partials(pat)
-                if gap_seq.upper() in partials:
-                    filled = True
-                    copies += 1
-                    to_merge = True
-            
-            elif gap_len > len(pat) and gap_len < 2 * len(pat):
-                if trimmed is None:
-                    trimmed = trim_ins(gap_seq)
-                if pat.upper() in trimmed:
-                    filled = True
-                    copies += 1
-                    to_merge = True
-
-            # larger gaps, try fill with combinations of partials
-            if not filled and len(pat) > 3 and gap_len > len(pat) and gap_len <= len(pat) * 3:
-                if partials is None:
-                    partials = get_partials(pat)
-                filled = fill_gaps(gap_seq, pat)
-                print('gg', gap_len, gap_seq, pat, blocks[j - 1][1], blocks[j][0], filled)
-                if filled and filled[1] == 0:
-                    filled_start = blocks[j - 1][1] + filled[-2]
-                    filled_end = blocks[j - 1][1] + filled[-1]
-                    print('gg2', gap_seq, pat, blocks[j - 1], blocks[j], filled_start, filled_end, filled)
-                    if filled_start == blocks[j - 1][1] and filled_end == blocks[j][0]:
-                        copies += filled[-3]
-                        to_merge = True
-                    elif blocks[j - 1][1] == filled_start:
-                        blocks[j - 1][1] = filled_end
-                        blocks[j - 1][2] += filled[-3]
-                    elif blocks[j][0] == filled_end:
-                        blocks[j][0] = filled_start
-                        blocks[j][2] += filled[-3]
-                    else:
-                        merged.append([filled_start, filled_end, filled[-3]])
-            
-            if to_merge:
-                merged_set.add(tuple(blocks[j]))
-                merged_set.add(tuple(blocks[j - 1]))
-                end = j
-                j += 1
-            else:
-                break
-        if end is not None:
-            for n in range(i, end + 1, 1):
-                copies += blocks[n][2]
-            merged.append([blocks[i][0], blocks[end][1], copies])
-            end = None
-        i = j
-
-    unmerged = [list(b) for b in sorted(list(set([tuple(b) for b in blocks]) - merged_set))]
-    return sorted(merged + unmerged, key=itemgetter(0))
-
 def find_seeds(matches, k, n=2):
     return [m for m in matches if (m[1] - m[0]) / k >= n]
+
+def fill_seeds(seeds, matches):
+    holes = get_holes(seeds)
+    for hole in holes:
+        for match in matches:
+            if match[0] >= hole[0] and match[1] <= hole[1]:
+                seeds.append(match)
+
+    seeds.sort(key=itemgetter(0,1))
+
+def blocks_olapped(b1, b2):
+    if (b1[0] >= b2[0] and b1[0] <= b2[1]) or (b2[0] >= b1[0] and b2[0] <= b1[1]) or\
+        (b1[0] <= b2[0] and b1[1] >= b2[1]) or (b2[0] <= b1[0] and b2[1] >= b1[1]):
+        return True
+    return False
 
 def fill_repeat(repeat, other_matches, seq, name):
     def make_others_bed():
@@ -184,7 +122,8 @@ def fill_repeat(repeat, other_matches, seq, name):
         for pat in other_matches.keys():
             for match in other_matches[pat]:
                 bed_str += '{}\n'.format('\t'.join([name] + list(map(str, match[:3])) + [pat]))
-        return BedTool(bed_str, from_string=True).sort().saveas('oo.bed')
+        bed = BedTool(bed_str, from_string=True)
+        return bed.sort()
 
     def make_holes_bed(holes):
         bed_str = ''
@@ -192,18 +131,18 @@ def fill_repeat(repeat, other_matches, seq, name):
             hole_span = tuple(hole)
             hole_seq = seq[hole[0]:hole[1]].upper()
             bed_str += '{}\n'.format('\t'.join([name, str(hole[0]), str(hole[1]), hole_seq]))
-        return BedTool(bed_str, from_string=True).sort().saveas('hh.bed')
+        bed = BedTool(bed_str, from_string=True)
+        return bed.sort()
 
+    seed_pat_counts = Counter([b[3] for b in repeat if len(b[3]) > 2])
     filled_blocks = []
     holes = get_holes(repeat)
-    print('hh', name, holes)
     if not holes:
-        return filled_blocks
+        return repeat
 
     others_bed = make_others_bed()
     holes_bed = make_holes_bed(holes)
 
-    print('hh0', name, holes)
     candidates = dict([(tuple(h), []) for h in holes])
     filled = dict([(tuple(h), []) for h in holes])
     for cols in holes_bed.intersect(others_bed, wo=True):
@@ -211,7 +150,6 @@ def fill_repeat(repeat, other_matches, seq, name):
         candidate_cols = cols[4:9]
         # hole length < candidate motif length
         if len(cols[3]) < len(candidate_cols[-1]):
-            #print('aa', cols)
             continue
 
         hole_span = int(hole_cols[2]) - int(hole_cols[1])
@@ -224,105 +162,131 @@ def fill_repeat(repeat, other_matches, seq, name):
         candidate = list(map(int, candidate_cols[1:4])) + [candidate_cols[-1]]
         # exact span = filled
         if hole_cols[:3] == candidate_cols[:3]:
-            #filled[hole].append(candidate)
             filled[hole] = [candidate]
-            #print(hole, candidate, filled)
             continue
 
         # candidate pattern subseq of neighbor "seed" pattern
         if not filled[hole] and candidate_span - hole_span == len(candidate_cols[-1]) and (hole_cols[1] == candidate_cols[1] or hole_cols[2] == candidate_cols[2]):
             candidate_modified = [hole[0], hole[1], candidate[2] - 1, candidate[3]]
-            print('hv', hole, hole_cols[-1], candidate, candidate_modified)
             filled[hole] = [candidate_modified]
             continue
 
         # candidate spap subsume hole = candidate
         candidates[hole].append(candidate)
-        '''
-        elif int(hole_cols[1]) >= int(candidate_cols[1]) and int(hole_cols[2]) <= int(candidate_cols[2]):
-            candidates[hole].append(candidate)
-        '''
 
-    print('hh1', name, filled)
+    new_holes = []
+    for hole in filled:
+        if not filled[hole] and hole in candidates:
+            seed_blocks = []
+            for pat, count in seed_pat_counts.most_common():
+                blocks = sorted([b for b in candidates[hole] if b[3].upper() == pat.upper() and b[0] >= hole[0] and b[1] <= hole[1]], key=itemgetter(2), reverse=True)
+                #print('uu0', hole, pat, count, blocks)
+                for block in blocks:
+                    if not seed_blocks:
+                        seed_blocks.append(block)
+                        break
+                    olapped = False
+                    for s in seed_blocks:
+                        #print('uu2', hole, seed_blocks, s, block, blocks_olapped(s, block))
+                        if blocks_olapped(s, block):
+                        #if (s[0] >= block[0] and s[0] <= block[1]) or (s[1] >= block[0] and s[1] <= block[1]):
+                            olapped = True
+                            break
+                    if not olapped:
+                        seed_blocks.append(block)
+            #print('uu', hole, seed_blocks)
+
+            if seed_blocks:
+                seed_blocks.sort(key=itemgetter(0,1))
+                if seed_blocks[0][0] != hole[0]:
+                    new_holes.append((hole[0], seed_blocks[0][0]))
+                new_holes.extend([tuple(h) for h in get_holes(seed_blocks)])
+                if seed_blocks[-1][1] != hole[1]:
+                    new_holes.append((seed_blocks[-1][1], hole[1]))
+                #print('uu2', hole, seed_blocks, new_holes)
+                
+                filled[hole] = seed_blocks
+
+    for hole in new_holes:
+        filled[hole] = []
+
     for hole in filled:
         if not filled[hole]:
             hole_seq = seq[hole[0]:hole[1]].upper()
-            #print('ccc', name, hole, hole_seq, candidates[hole])
-
+            filled_blocks.append([hole[0], hole[1], 1, hole_seq])
         filled_blocks.extend(filled[hole])
 
-    return filled_blocks
-    
-def fill_gaps(seq, pat):
-    #print(seq, pat)
-    partials = get_partials(pat)
-    n = int(len(seq)/2)
-    #print(seq, pat, n, partials)
+    filled_repeat = sorted(repeat + filled_blocks, key=itemgetter(0))
+    #print('qq', name, filled_repeat)
+    #print('qq2', name, check_blocks_order(filled_repeat))
 
-    choices = []
-    #for i in range(4, 5, 1):
-    for i in range(2, int(len(seq)/2) + 1, 1):
-        for subset in combinations_with_replacement(partials, i):
-            if len(''.join(subset)) > len(seq):
-                continue
-            # homopolymer
-            if len(set(subset)) == 1 and len(set(subset[0])) == 1:
-                continue
+    fix_fillings(filled_repeat, [s[0] for s in seed_pat_counts.most_common()], name=name)
 
-            # start base must be the same
-            same_starts = [s for s in subset if s[0].upper() == pat[0].upper()]
-            if len(same_starts) != len(subset):
-                continue
+    #print('nn', name, filled_repeat)
+    #print('nn2', name, check_blocks_order(filled_repeat))
 
-            # all dimers
-            lens = list(set([len(s) for s in subset]))
-            if len(lens) == 1 and lens[0] <= 2:
-                continue
+    return filled_repeat
 
-            for order in permutations(subset):
-                #print('ee', subset, order)
-                test_seq = ''.join(order)
-                if test_seq not in seq:
-                    continue
-                diff = len(seq) - len(test_seq)
-                m = re.search(test_seq, seq)
-                choices.append((','.join(order), diff, len(subset), m.start(), m.end()))
+def fix_fillings(blocks, seed_pats, name=None):
+    partials = {}
+    for seed_pat in seed_pats:
+        partials[seed_pat] = get_partials(seed_pat)
 
-    if choices:
-        choices.sort(key=itemgetter(1,2))
-        #for c in choices:
-        #   print(c)
-        return choices[0]
-    else:
-        return None
+    changed = False
+    last_index = 1
+    num_blocks = len(blocks)
+    while last_index == 1 or (last_index < num_blocks and changed):
+        changed = False
+        for i in range(last_index, len(blocks), 1):
+            last_index = i
+            block1 = blocks[i - 1]
+            block = blocks[i]
+            if block[3] not in seed_pats:
+                #print('qqq', name, block, seed_pats)
+                for seed_pat in seed_pats:
+                    if block[3] in partials[seed_pat]:
+                        if len(seed_pat) - len(block[3]) >= 2:
+                            continue
+                        changed = True
+                        block[3] = seed_pat
+                        last_index = i + 1
+                if not changed:
+                    if block[2] == 1 and len(block[3]) < 10:
+                        trimmed = trim_ins(block[3])
+                        for pat in trimmed:
+                            if pat in seed_pats:
+                                block[3] = pat
+                                last_index = i + 1
+                                changed = True
+                                break
 
-def merge_blocks_multiple(blocks_start, pat, seq, name=None):
-    blocks = blocks_start
-    blocks_merged = []
-    n = 0
-    while blocks_merged != blocks:
-        if blocks_merged:
-            blocks = blocks_merged 
-        blocks_merged = merge_blocks(blocks, pat, seq)
-        n += 1
-    #print('multi', name, pat, n)
-    return blocks_merged
+            if changed:
+                num_blocks = len(blocks)
+                break
 
-def extend_blocks(seeds, blocks, pat, seq, before=True, name=None):
-    blocks_iter = blocks if not before else blocks[::-1]
-    block_bound = seeds[-1] if not before else seeds[0]
-
-    blocks_extended = []
-    for block_iter in blocks_iter:
-        blocks_test = sorted([block_iter, block_bound], key=itemgetter(0))
-        blocks_merged = merge_blocks(blocks_test, pat, seq)
-        if blocks_merged != blocks_test:
-            #print('yy2', name, pat, seeds, blocks, blocks_test, seq[blocks_test[0][1]:blocks_test[1][0]], pat, blocks_merged)
-            blocks_extended.append(block_iter)
-            block_bound = block_iter
-        else:
-            break
-    return sorted(blocks_extended, key=itemgetter(0))
+    # merge
+    i = 0
+    remove_index = []
+    while i < len(blocks) - 1:
+        copies = blocks[i][2]
+        end = blocks[i][1]
+        for j in range(i + 1, len(blocks), 1):
+            if blocks[j][3] == blocks[i][3]:
+                copies += blocks[j][2]
+                end = blocks[j][1]
+                remove_index.append(j)
+            elif blocks[j][1] - blocks[j][0] == 1 and blocks[j][3].upper() == blocks[i][3][-1].upper():
+                #print('bbb', name, blocks[j])
+                end = blocks[j][1]
+                remove_index.append(j)
+            else:
+                break
+        if copies != blocks[i][2] or end != blocks[i][1]:
+            blocks[i][2] = copies
+            blocks[i][1] = end
+        i = j
+    for i in remove_index[::-1]:
+        del blocks[i]
 
 def get_seeds(seq, pat, name=None):
     seeds = []
@@ -332,62 +296,7 @@ def get_seeds(seq, pat, name=None):
         blocks = merge_matches(starts, len(pat))
         seeds = find_seeds(blocks, len(pat), n=3)
 
-        if seeds:
-            print('uu', name, pat, len(seeds), seeds)
-            start_index = blocks.index(seeds[0])
-            end_index = blocks.index(seeds[-1])
-
-            # extensions
-            blocks_before = [blocks[i] for i in range(len(blocks)) if i < start_index]
-            blocks_after = [blocks[i] for i in range(len(blocks)) if i > end_index]
-            blocks_extended_before = []
-            blocks_extended_after = []
-            if blocks_before:
-                blocks_extended_before = extend_blocks(seeds, blocks_before, pat, seq, before=True, name=name)
-                #if blocks_extended_before:
-                #    print('yy before', name, pat, seeds, blocks_extended_before, start_index, blocks.index(blocks_extended_before[0]))
-            if blocks_after:
-                blocks_extended_after = extend_blocks(seeds, blocks_after, pat, seq, before=False, name=name)
-                #if blocks_extended_after:
-                #    print('yy after', name, pat, seeds, blocks_extended_after, end_index, blocks.index(blocks_extended_after[-1]))
-       
-            #if blocks_extended_before or blocks_extended_after:
-            #    print('ee', name, pat, seeds, 'bf', blocks_extended_before, 'af', blocks_extended_after, 'new', blocks_extended_before + seeds + blocks_extended_after)
-            seeds = blocks_extended_before + seeds + blocks_extended_after
-            start_index = blocks.index(seeds[0])
-            end_index = blocks.index(seeds[-1])
-
-            if len(seeds) > 1:
-                blocks_between = blocks[start_index:end_index + 1]
-                #print('ww', name, start_index, end_index, blocks_between)
-
-                seeds_merged = merge_blocks_multiple(blocks_between, pat, seq, name=name)
-                #print('qq', name, pat, seeds_merged)
-                seeds = seeds_merged
-
-            copies = sum([s[2] for s in seeds])
-            start = min([s[0] for s in seeds])
-            end = max([s[1] for s in seeds])
-            print('zz', name, pat, copies, start, end, seeds)
-
     return seeds, blocks
-
-def split_seeds(seeds, f=0.1):
-    groups = []
-    starts = [0]
-    seeds_span = seeds[-1][1] - seeds[0][0]
-    max_gap_size = f * seeds_span
-    for i in range(len(seeds)-1):
-        gap_size = seeds[i+1][0] - seeds[i][1]
-        if gap_size > max_gap_size:
-            starts.append(i+1)
-    starts.append(len(seeds))
-    for i in range(len(starts)):
-        if i == len(starts) - 1:
-             break
-        group = seeds[starts[i]:starts[i+1]]
-        groups.append(group)
-    return groups
 
 def find_perms(seeds, name=None):
     seeds_copies = []
@@ -424,60 +333,102 @@ def find_perms(seeds, name=None):
 
     return groups
 
-def combine_blocks(blocks):
-    blocks_sorted = sorted(blocks, key=itemgetter(0,1))
-    combined = [blocks_sorted[0]]
-    olaps = 0
-    for i in range(1, len(blocks_sorted), 1):
-        b1 = combined[-1]
-        b2 = blocks_sorted[i]
-        if b2[0] >= b1[1]:
-            combined.append(b2)
-            #print('qqq normal', b1, b2)
-            
-        # b1 subsume b2, replace b1 by b2
-        elif b2[0] == b1[0]:
-            #print('qqq subsume', b1, b2)
-            combined[-1] = b2
-            olaps += 1
-        # b1 overlap b2, adjust coord
-        elif b2[0] > b1[0]:
-            #print('qqq overlap', b1, b2)
-            olaps += 1
+def combine_seeds(blocks, seq):
+    def remove_olaps(olaps):
+        pat_counts = Counter([b[3] for b in blocks])
+        olaps.sort(key=itemgetter(2), reverse=True)
 
-            if b1[2] < b2[2]:
-                b1[2] -= 1
-                b1[1] -= len(b1[3])
-                #print('qqq1a', b1, b2)
-                if b1[2] == 0:
-                    combined[-1] = b2
+        for i in range(len(olaps)):
+            for j in range(len(olaps)):
+                if i == j or olaps[j][2] == 0:
+                    continue
+                b1, b2 = sorted([olaps[i], olaps[j]], key=itemgetter(0,1))
+                #print('ooo', b1, b2)
+                if b2[0] >= b1[1]:
+                    continue
+                elif b1[0] <= b2[0] and b1[1] >= b2[1]:
+                    b2[2] = 0
+                elif b1[0] >= b2[0] and b1[1] <= b2[1]:
+                    b1[2] = 0
                 else:
-                    combined.append(b2)
+                    olap = b1[1] - b2[0]
+                    if pat_counts[b1[3]] < pat_counts[b2[3]]:
+                        change_first = True
+                    elif pat_counts[b1[3]] > pat_counts[b2[3]]:
+                        change_first = False
+                    elif b1[2] < b2[2]:
+                        change_first = True
+                    elif b1[2] > b2[2]:
+                        change_first = False
+                    elif pat_counts[b1[3]] > pat_counts[b2[3]]:
+                        change_first = False
+                    elif pat_counts[b1[3]] < pat_counts[b2[3]]:
+                        change_first = True
+                    else:
+                        change_first = False
 
-            elif b2[2] < b1[2]:
-                b2[2] -= 1
-                b2[0] += len(b2[3])
-                #print('qqq1b', b1, b2)
-                if b2[2] > 0:
-                    combined.append(b2)
+                    if change_first:
+                        copies_change = math.ceil(olap/len(b1[3]))
+                        b1[2] -= copies_change
+                        b1[1] -= copies_change * len(b1[3])
+                    else:
+                        copies_change = math.ceil(olap/len(b2[3]))
+                        b2[2] -= copies_change
+                        b2[0] += copies_change * len(b2[3])
+                    
+    num_olaps = 0
+    blocks.sort(key=itemgetter(0,1))
 
-            elif b1[2] == 1:
-                combined[-1] = b2
+    # remove subsumes first
+    subsumes = []
+    for i in range(len(blocks)):
+        for j in range(len(blocks)):
+            if i != j:
+                if blocks[i][0] > blocks[j][0] and blocks[i][1] < blocks[j][1]:
+                    subsumes.append(i)
+                    break
 
-            elif b2[2] == 1:
-                continue
+    num_olaps += len(subsumes)
+    for i in subsumes[::-1]:
+        del blocks[i]
 
-            else:
-                continue
+    # count overlaps and coverage for picking
+    i = 0
+    while i <= len(blocks):
+        if i == len(blocks) - 1:
+            break
+        olaps = [blocks[i]]
+        for j in range(i + 1, len(blocks), 1):
+            if blocks[j][0] >= max([b[1] for b in olaps]):
+                break
+            olaps.append(blocks[j])
+            
+        if len(olaps) > 1:
+            num_olaps += len(olaps) - 1
+            remove_olaps(olaps)
+        i = j
 
-        else:
-            print('qqq ??', b1, b2)
-            combined.append(b2)
+    empties = [i for i in range(len(blocks)) if blocks[i][2] == 0]
+    for i in empties[::-1]:
+        del blocks[i]
 
-    coverage = sum([b[1] - b[0] for b in combined])
-    return olaps, coverage, combined
+    coverage = sum([b[1] - b[0] for b in blocks])
+    return num_olaps, coverage
 
-def config_repeat(seeds, name=None):
+def check_blocks_order(blocks):
+    problems = []
+    for i in range(len(blocks) - 1):
+        if blocks[i+1][0] < blocks[i][1]:
+            problems.append((blocks[i], blocks[i+1]))
+    return problems
+
+def check_blocks_seq(blocks, seq, name=None):
+    for block in blocks:
+        seq1 = block[3] * block[2]
+        seq2 = seq[block[0]:block[1]]
+        print('yy', name, block, seq1, seq2, seq1==seq2)
+
+def config_repeat(seeds, seq, name=None):
     groups = find_perms(seeds, name=name)
     
     group_indexes = []
@@ -489,22 +440,15 @@ def config_repeat(seeds, name=None):
         blocks = []
         for index, group in zip(combo, groups):
             for block in group[index]:
-                if block[2] <= 0:
-                    print('mm', block)
                 # need to copy block because coordinate will get changed in combining
                 blocks.append(block[:])
 
-        olaps, coverage, combined = combine_blocks(blocks)
-        olaps_combos.append((olaps, -1 * coverage, combined))
-
-        for block in combined:
-            if block[2] <= 0:
-                print('nn', block)
+        olaps, coverage = combine_seeds(blocks, seq)
+        olaps_combos.append((olaps, -1 * coverage, blocks))
     
     olaps_combos.sort(key=itemgetter(0, 1))
-    for olaps, coverage, combo in olaps_combos:
-        pat_counts = Counter([b[3] for b in combo])
-        print('jj', name, olaps, -1 * coverage, pat_counts, len(combo), combo)
+    #for olaps, coverage, combo in olaps_combos:
+    #    pat_counts = Counter([b[3] for b in combo])
 
     return olaps_combos[0][-1]
 
@@ -521,22 +465,20 @@ def extract_pats(seq, kmers, name=None):
         if not seeds:
             continue
         
+        fill_seeds(seeds, matches)
         [add_pat(seed, pat) for seed in [seeds]]
         all_seeds.append(seeds)
-        continue
-        # break up seeds that are too far apart (not necessary if only no flanking sequences given)
-        # skip dimer seeds
-        if len(pat) > 2:
-            seeds_split = split_seeds(seeds)
-            [add_pat(seed, pat) for seed in seeds_split]
-            all_repeats.extend(seeds_split)
 
-    combined_seeds = config_repeat(all_seeds, name=name)
+    combined_seeds = config_repeat(all_seeds, seq, name=name)
     print('mm', name, combined_seeds)
-    #print('nn', name, [seq[s[0]:s[1]] for s in combined_seeds])
-    filled_holes = fill_repeat(combined_seeds, all_matches, seq, name)
-    repeat = sorted(combined_seeds + filled_holes, key=itemgetter(0))
+    print('mm2', name, check_blocks_order(combined_seeds))
+
+    repeat = fill_repeat(combined_seeds, all_matches, seq, name)
+
     print('ff', name, repeat)
+    print('ff2', name, check_blocks_order(repeat))
+    #check_blocks_seq(repeat, seq, name=seq_name)
+
     return repeat
 
 kmers = []
@@ -577,8 +519,12 @@ for seq_name in fa.references:
     #LRP12
     #if not '012732fc-97e2-463a-b74d-729183b053e1' in seq_name:
     #    continue
-    if not '61692e52-0988-4fa6-a588-' in seq_name:
-        continue
+    #if not '61692e52-0988-4fa6-a588-' in seq_name:
+    #    continue
+    #if not 'd7ac326c-54dc' in seq_name:
+    #    continue
+    #if not '08db7117' in seq_name:
+    #    continue
 
     seq = fa.fetch(seq_name)
     combined_pats = extract_pats(seq, kmers, name=seq_name)
