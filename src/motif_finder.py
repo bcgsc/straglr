@@ -101,8 +101,14 @@ def trim_ins(seq):
 def find_seeds(matches, k, n=2):
     return [m for m in matches if (m[1] - m[0]) / k >= n]
 
-def fill_seeds(seeds, matches):
+def fill_seeds(seeds, matches, seq, w=None):
     holes = get_holes(seeds)
+    if w is None:
+        if seeds[0][0] > 0:
+            holes.insert(0, [0, seeds[0][0]])
+        if seeds[-1][1] < len(seq):
+            holes.append([seeds[-1][1], len(seq)])
+
     for hole in holes:
         for match in matches:
             if match[0] >= hole[0] and match[1] <= hole[1]:
@@ -275,7 +281,7 @@ def fix_fillings(blocks, seed_pats, name=None):
                 copies += blocks[j][2]
                 end = blocks[j][1]
                 remove_index.append(j)
-            elif blocks[j][1] - blocks[j][0] == 1 and blocks[j][3].upper() == blocks[i][3][-1].upper():
+            elif blocks[j][1] - blocks[j][0] == 1 and (blocks[j][3].upper() == blocks[i][3][-1].upper() or blocks[j][3].upper() == blocks[j+1][3][0].upper()):
                 #print('bbb', name, blocks[j])
                 end = blocks[j][1]
                 remove_index.append(j)
@@ -394,26 +400,30 @@ def combine_seeds(blocks, seq):
 
     # count overlaps and coverage for picking
     i = 0
-    while i <= len(blocks):
-        if i == len(blocks) - 1:
-            break
-        olaps = [blocks[i]]
-        for j in range(i + 1, len(blocks), 1):
-            if blocks[j][0] >= max([b[1] for b in olaps]):
+    if len(blocks) > 1:
+        while i <= len(blocks):
+            if i == len(blocks) - 1:
                 break
-            olaps.append(blocks[j])
-            
-        if len(olaps) > 1:
-            num_olaps += len(olaps) - 1
-            remove_olaps(olaps)
-        i = j
+            olaps = [blocks[i]]
+            for j in range(i + 1, len(blocks), 1):
+                if blocks[j][0] >= max([b[1] for b in olaps]):
+                    break
+                olaps.append(blocks[j])
+                
+            if len(olaps) > 1:
+                num_olaps += len(olaps) - 1
+                remove_olaps(olaps)
+            i = j
 
     empties = [i for i in range(len(blocks)) if blocks[i][2] == 0]
     for i in empties[::-1]:
         del blocks[i]
 
     coverage = sum([b[1] - b[0] for b in blocks])
-    return num_olaps, coverage
+
+    highest_count = Counter([b[3] for b in blocks]).most_common(1)[0][1]
+
+    return num_olaps, coverage, highest_count
 
 def check_blocks_order(blocks):
     problems = []
@@ -443,13 +453,15 @@ def config_repeat(seeds, seq, name=None):
                 # need to copy block because coordinate will get changed in combining
                 blocks.append(block[:])
 
-        olaps, coverage = combine_seeds(blocks, seq)
-        olaps_combos.append((olaps, -1 * coverage, blocks))
+        olaps, coverage, highest_count = combine_seeds(blocks, seq)
+        olaps_combos.append((olaps, -1 * coverage, -1 * highest_count, blocks))
     
-    olaps_combos.sort(key=itemgetter(0, 1))
-    #for olaps, coverage, combo in olaps_combos:
-    #    pat_counts = Counter([b[3] for b in combo])
-
+    olaps_combos.sort(key=itemgetter(0, 1, 2))
+    #'''
+    for olaps, coverage, highest_count, combo in olaps_combos:
+        pat_counts = Counter([b[3] for b in combo])
+        print(olaps, coverage, pat_counts, highest_count, combo)
+    #'''
     return olaps_combos[0][-1]
 
 def extract_pats(seq, kmers, name=None):
@@ -465,10 +477,13 @@ def extract_pats(seq, kmers, name=None):
         if not seeds:
             continue
         
-        fill_seeds(seeds, matches)
+        fill_seeds(seeds, matches, seq, w=0)
         [add_pat(seed, pat) for seed in [seeds]]
         all_seeds.append(seeds)
 
+    if not all_seeds:
+        return None
+    
     combined_seeds = config_repeat(all_seeds, seq, name=name)
     print('mm', name, combined_seeds)
     print('mm2', name, check_blocks_order(combined_seeds))
