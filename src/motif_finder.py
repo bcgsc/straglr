@@ -101,13 +101,8 @@ def trim_ins(seq):
 def find_seeds(matches, k, n=2):
     return [m for m in matches if (m[1] - m[0]) / k >= n]
 
-def fill_seeds(seeds, matches, seq, w=None):
+def fill_seeds(seeds, matches):
     holes = get_holes(seeds)
-    if w is None:
-        if seeds[0][0] > 0:
-            holes.insert(0, [0, seeds[0][0]])
-        if seeds[-1][1] < len(seq):
-            holes.append([seeds[-1][1], len(seq)])
 
     for hole in holes:
         for match in matches:
@@ -115,6 +110,35 @@ def fill_seeds(seeds, matches, seq, w=None):
                 seeds.append(match)
 
     seeds.sort(key=itemgetter(0,1))
+
+def extend_seeds(seeds, matches, pat_len, seq_len, n=2):
+    gap_size = n * pat_len
+
+    extended = True
+    while extended and seeds[0][0] > 0:
+        matches_beyond = [m for m in matches if m[1] < seeds[0][0]]
+        if not matches_beyond:
+            break
+
+        if matches_beyond[-1][1] <= seeds[0][0] - gap_size:
+            seeds.insert(0, matches_beyond[-1])
+            extended = True
+        else:
+            extended = False
+
+    extended = True
+    while extended and seeds[-1][1] < seq_len:
+        matches_beyond = [m for m in matches if m[0] > seeds[-1][1]]
+        if not matches_beyond:
+            break
+
+        if matches_beyond[0][0] <= seeds[-1][1] + gap_size:
+            seeds.append(matches_beyond[0])
+            extended = True
+        else:
+            extended = False
+
+    
 
 def blocks_olapped(b1, b2):
     if (b1[0] >= b2[0] and b1[0] <= b2[1]) or (b2[0] >= b1[0] and b2[0] <= b1[1]) or\
@@ -457,11 +481,11 @@ def config_repeat(seeds, seq, name=None):
         olaps_combos.append((olaps, -1 * coverage, -1 * highest_count, blocks))
     
     olaps_combos.sort(key=itemgetter(0, 1, 2))
-    #'''
+    '''
     for olaps, coverage, highest_count, combo in olaps_combos:
         pat_counts = Counter([b[3] for b in combo])
         print(olaps, coverage, pat_counts, highest_count, combo)
-    #'''
+    '''
     return olaps_combos[0][-1]
 
 def extract_pats(seq, kmers, name=None):
@@ -477,7 +501,8 @@ def extract_pats(seq, kmers, name=None):
         if not seeds:
             continue
         
-        fill_seeds(seeds, matches, seq, w=0)
+        fill_seeds(seeds, matches)
+        extend_seeds(seeds, matches, len(pat), len(seq))
         [add_pat(seed, pat) for seed in [seeds]]
         all_seeds.append(seeds)
 
