@@ -111,6 +111,30 @@ def fill_seeds(seeds, matches):
 
     seeds.sort(key=itemgetter(0,1))
 
+def fill_partials(seq, pat):
+    partials = get_partials(pat)
+    choices = []
+    for i in range(2, int(len(seq)/2) + 1, 1):
+        for subset in combinations_with_replacement(partials, i):
+            if len(''.join(subset)) > len(seq):
+                continue
+            # homopolymer
+            if len(set(subset)) == 1 and len(set(subset[0])) == 1:
+                continue
+            for order in permutations(subset):
+                test_seq = ''.join(order)
+                if test_seq not in seq:
+                    continue
+                diff = len(seq) - len(test_seq)
+                m = re.search(test_seq, seq)
+                choices.append((order, diff, len(subset), m.start(), m.end()))
+
+    if choices:
+        choices.sort(key=itemgetter(1,2))
+        return choices[0]
+    else:
+        return None
+
 def extend_seeds(seeds, matches, pat_len, seq_len, n=2):
     gap_size = n * pat_len
 
@@ -137,8 +161,6 @@ def extend_seeds(seeds, matches, pat_len, seq_len, n=2):
             extended = True
         else:
             extended = False
-
-    
 
 def blocks_olapped(b1, b2):
     if (b1[0] >= b2[0] and b1[0] <= b2[1]) or (b2[0] >= b1[0] and b2[0] <= b1[1]) or\
@@ -240,6 +262,25 @@ def fill_repeat(repeat, other_matches, seq, name):
     for hole in new_holes:
         filled[hole] = []
 
+    # fill with concatenations of partials
+    for hole in filled:
+        if not filled[hole]:
+            hole_seq = seq[hole[0]:hole[1]].upper()
+            if len(hole_seq) <= 2:
+                continue
+            flanks = [b for b in repeat if b[1] == hole[0] or b[0] == hole[1]]
+            if len(flanks) == 2 and flanks[0][3] == flanks[1][3]:
+                filled_partials = fill_partials(hole_seq, flanks[0][3])
+                if filled_partials and filled_partials[1] == 0 and filled_partials[3] == 0 and filled_partials[4] == len(hole_seq):
+                    ppats = filled_partials[0]
+                    start = filled_partials[3] + hole[0]
+                    new_blocks = []
+                    for i in range(len(ppats)):
+                        end = start + len(ppats[i])
+                        new_blocks.append([start, end, 1, ppats[i]])
+                        start = end
+                    filled[hole] = new_blocks
+
     for hole in filled:
         if not filled[hole]:
             hole_seq = seq[hole[0]:hole[1]].upper()
@@ -247,8 +288,6 @@ def fill_repeat(repeat, other_matches, seq, name):
         filled_blocks.extend(filled[hole])
 
     filled_repeat = sorted(repeat + filled_blocks, key=itemgetter(0))
-    #print('qq', name, filled_repeat)
-    #print('qq2', name, check_blocks_order(filled_repeat))
 
     fix_fillings(filled_repeat, [s[0] for s in seed_pat_counts.most_common()], name=name)
 
