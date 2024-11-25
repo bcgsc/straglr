@@ -17,7 +17,7 @@ class VCF:
             ('RUB', '.', 'Integer', 'Number of bases in each individual repeat unit'),
             ('RB', '.', 'Integer', 'Total number of bases in the corresponding repeat sequence'),
             ('CIRUC', '.', 'Float', 'Confidence interval around RUC'),
-            ('CIRB', '.' 'Integer', 'Confidence interval around RB'),
+            ('CIRB', '.', 'Integer', 'Confidence interval around RB'),
             )
     format = (
               ('GT', 1, 'String', 'Genotype'),
@@ -175,15 +175,16 @@ class VCF:
         vals = []
         for i in cls.info:
             if i[0] in info:
-                vals.append('{}:{}'.format(i[0], ','.join(map(str, info[i[0]]))))
+                vals.append('{}={}'.format(i[0], ','.join(map(str, info[i[0]]))))
         info_col = ';'.join(vals)
         
         # FORMAT
         vals = []
         for f in cls.format:
             if f[0] in genotype:
-                vals.append((f[0], map(str, genotype[f[0]])))
-        format_cols = ['\t'.join((':'.join([v[0] for v in vals]), ':'.join(['/'.join(v[1]) for v in vals])))]
+                sep = '/' if f[0] == 'GT' else ','
+                vals.append((f[0], sep.join(map(str, genotype[f[0]]))))
+        format_cols = ['\t'.join((':'.join([v[0] for v in vals]), ':'.join([v[1] for v in vals])))]
 
         return ','.join(alts), info_col, format_cols
 

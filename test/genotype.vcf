@@ -1,5 +1,5 @@
 ##fileformat=VCFv4.5
-##fileDate=20240926
+##fileDate=20241124
 ##source=StraglrV1.5.2
 ##reference=/projects/btl/rchiu/hg38.fa
 ##contig=<ID=chr22,length=50818468>
@@ -14,11 +14,11 @@
 ##INFO=<ID=RUB,Number=.,Type=Integer,Description="Number of bases in each individual repeat unit">
 ##INFO=<ID=RB,Number=.,Type=Integer,Description="Total number of bases in the corresponding repeat sequence">
 ##INFO=<ID=CIRUC,Number=.,Type=Float,Description="Confidence interval around RUC">
-##INFO=<ID=CIRB,Number=.Integer,Type=Confidence interval around RB>
+##INFO=<ID=CIRB,Number=.,Type=Integer,Description="Confidence interval around RB">
 ##FILTER=<ID=PASS,Description="All filters passed">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
 ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Total read depth for each allele">
 ##ALT=<ID=CNV:TR,Description="Tandem repeat determined base on DNA abundance">
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	Sample
-chr22	45795354	.	G	<CNV:TR>,<CNV:TR>	.	PASS	RUS_REF:ATTCT;SVLEN:70,70;RN:1,1;RUS:ATTCT,ATTCT;RB:1901,1934;CIRB:-21,5,-7,34	GT:DP:AD	1/2:18:3/9
+chr22	45795354	.	G	<CNV:TR>,<CNV:TR>	.	PASS	RUS_REF=ATTCT;SVLEN=70,70;RN=1,1;RUS=ATTCT,ATTCT;RB=1901,1934;CIRB=-21,5,-7,34	GT:DP:AD	1/2:18:3,9
