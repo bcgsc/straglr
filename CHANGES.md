@@ -77,3 +77,8 @@ v1.5.2
 - post-processing of GMM clustering results modified
 - VCFv4.5 on tandem repeats (`<CNV:TR>`) followed
 
+v1.5.3
+- fixed VCF bugs
+	1. INFO field separator should be "=" instead of ":"
+	2. AD separator should be "," instead of "/"
+	3. CIRC definition typo
