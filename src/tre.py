@@ -1273,6 +1273,9 @@ class TREFinder:
         
         # only pick most frequent motif to represent allele (tiebreak can create error)
         for allele in variant[6]:
+            # partials (>xx) will not appear in vcf for
+            if type(allele) is str:
+                continue
             same_size = False
     
             # if assigned allele in copy number is <1 copy number from reference, it's reference allele

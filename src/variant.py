@@ -34,6 +34,8 @@ class Variant:
         # cluster - always use sizes
         sizes = sorted([a[4] for a in variant[3] if a[-1] == 'full'])
         max_num_clusters = 1 if sex is not None and sex.lower() == 'm' and variant[0] in ('chrX', 'X') else None
+        if max_num_clusters is not None:
+            clustering.max_num_clusters = max_num_clusters
         clusters = clustering.cluster(sizes)
 
         # genotype labels: median of either copy numbers(default) or size
@@ -107,7 +109,7 @@ class Variant:
                 biggers = [p for p in partials if p[4] > max_gt_size]
 
                 # if there are enough partials bigger than minimum, create allele
-                if len(biggers) >= cls.genotype_config['min_reads']:
+                if len(biggers) >= clustering.min_pts:
                     biggest_partial_size = max([r[4] for r in biggers])
                     gt = '>{}'.format(biggest_partial_size)
                     variant[6].append(gt)

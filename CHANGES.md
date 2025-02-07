@@ -1,3 +1,6 @@
+v1.5.4 (not published yet)
+- fixed bug [issue#61](https://github.com/bcgsc/straglr/issues/61) as class variable `genotype_config` no longer exists for class Cluster
+
 v1.5.3
 - fixed VCF bugs
     1. INFO field separator should be "=" instead of ":"
