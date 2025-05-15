@@ -106,16 +106,24 @@ class Variant:
                 else:
                     max_gt_size = 0 
                 # find all partials with sizes bigger than current biggest size
-                biggers = [p for p in partials if p[4] > max_gt_size]
+                if report_in_size:
+                    biggers = [p for p in partials if p[4] > max_gt_size]
+                else:
+                    biggers = [p for p in partials if p[3] > max_gt_size]
 
                 # if there are enough partials bigger than minimum, create allele
                 if len(biggers) >= clustering.min_pts:
-                    biggest_partial_size = max([r[4] for r in biggers])
-                    gt = '>{}'.format(biggest_partial_size)
+                    if report_in_size:
+                        biggest_partial_size = max([r[4] for r in biggers])
+                    else:
+                        # copy number based on allele size
+                        biggest_partial_size = max([r[4] / len(variant[4]) for r in biggers])
+                    gt = '>{:.1f}'.format(biggest_partial_size)
                     variant[6].append(gt)
+                    # copy number based on allele size
                     for p in partials:
                         p[-1] = gt
-                        p[3] = round(float(p[4]) / len(variant[4]), 1) 
+                        p[3] = round(float(p[4]) / len(variant[4]), 1)
             
     @classmethod
     def get_genotype(cls, variant):
