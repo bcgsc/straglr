@@ -1272,10 +1272,11 @@ class TREFinder:
             a.insert(-2, None)
         
         # only pick most frequent motif to represent allele (tiebreak can create error)
-        for allele in variant[6]:
+        for genotype in variant[6]:
+            allele = genotype
             # partials (>xx) will not appear in vcf for
-            if type(allele) is str:
-                continue
+            if type(genotype) is str:
+                allele = float(genotype[1:])
             same_size = False
     
             # if assigned allele in copy number is <1 copy number from reference, it's reference allele
@@ -1289,14 +1290,14 @@ class TREFinder:
             if cn_change < min_cn_change:
                 same_size = True
 
-            sizes = [a[4] for a in variant[3] if a[-1] == allele and a[-2] == 'full']
+            sizes = [a[4] for a in variant[3] if a[-1] == genotype and (a[-2] == 'full' or a[-2] == 'partial')]
             # allele start with ">"
             if not sizes:
                 continue
             # interquartile range * 10%
             size_ranges = np.percentile(sizes,[25,75])
 
-            motifs = [a[2] for a in variant[3] if a[-1] == allele and a[-2] == 'full']
+            motifs = [a[2] for a in variant[3] if a[-1] == genotype and (a[-2] == 'full' or a[-2] == 'partial')]
             motif = Counter(motifs).most_common(1)[0][0]
 
             if not same_size:
@@ -1314,7 +1315,7 @@ class TREFinder:
             
             # assign gt (a[9])
             for a in variant[3]:
-                if a[-1] == allele and a[-2] == 'full':
+                if a[-1] == genotype and (a[-2] == 'full' or a[-2] == 'partial'):
                     a[9] = gt
 
     def add_reads(self, variant, skipped_reads):

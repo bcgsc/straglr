@@ -143,9 +143,17 @@ class VCF:
         for gt, allele in gts_sorted:
             cn, size = None, None
             if not genotype_in_size:
-                cn = allele
+                # partial started with '>'
+                if type(allele) is str:
+                    cn = float(allele[1:])
+                else:
+                    cn = allele
             else:
-                size = allele
+                # partial started with '>'
+                if type(allele) is str:
+                    size = float(allele[1:])
+                else:
+                    size = allele
             motif, cn, size, cn_range, size_range = extract_cnvtr(gts[(gt, allele)], cn=cn, size=size)
             cn_diff = [c - cn for c in cn_range]
             size_diff = [s - size for s in size_range]
@@ -159,10 +167,16 @@ class VCF:
                     info['RUL'].append(len(motif))
                 if genotype_in_size:
                     info['RB'].append('{:.0f}'.format(size))
-                    info['CIRB'].extend(['{:.0f}'.format(size_diff[0]), '{:.0f}'.format(size_diff[1])])
+                    if type(allele) is str:
+                        info['CIRB'].extend([0, '.'])
+                    else:
+                        info['CIRB'].extend(['{:.0f}'.format(size_diff[0]), '{:.0f}'.format(size_diff[1])])
                 else:
                     info['RUC'].append('{:.1f}'.format(cn))
-                    info['CIRUC'].extend(['{:.1f}'.format(cn_diff[0]), '{:.1f}'.format(cn_diff[1])])
+                    if type(allele) is str:
+                        info['CIRUC'].extend([0, '.'])
+                    else:
+                        info['CIRUC'].extend(['{:.1f}'.format(cn_diff[0]), '{:.1f}'.format(cn_diff[1])])
                 info['SVLEN'].append(ref_len)
 
             genotype['GT'].append(gt)
