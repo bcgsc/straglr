@@ -1480,10 +1480,10 @@ class TREFinder:
                     allele = float(allele_str[1:])
                     if self.genotype_in_size:
                         sizes.append(allele_str)
-                        copy_numbers.append('>{}'.format(round(allele / len(variant[4]) , 1)))
+                        copy_numbers.append('>{:.1f}'.format(round(allele / len(variant[4]) , 1)))
                     else:
-                        copy_numbers.append(allele)
-                        sizes.append('>{}'.format(allele * len(variant[4])))
+                        copy_numbers.append(allele_str)
+                        sizes.append('>{:.1f}'.format(allele * len(variant[4])))
                     support = len([r for r in variant[3] if r[-1] == allele_str])
                     supports.append(support)
 
