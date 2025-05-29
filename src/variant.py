@@ -31,8 +31,17 @@ class Variant:
 
     @classmethod
     def genotype(cls, variant, clustering, use_mean=False, sex=None, report_in_size=False):
-        # cluster - always use sizes
+        partials = [r for r in variant[3] if r[-1] == 'partial']
+        min_partial_size = 0
+
+        # cluster - always use sizes, only use "full" alleles
         sizes = sorted([a[4] for a in variant[3] if a[-1] == 'full'])
+
+        # reserve 1 allele/cluster if there exists partials bigger than max allele
+        bigger_partial_sizes = [p[4] for p in partials]
+        if partials and min(bigger_partial_sizes) > max(sizes) and len(bigger_partial_sizes) >= clustering.min_pts:
+            clustering.max_num_clusters = max(1, clustering.max_num_clusters - 1)
+
         max_num_clusters = 1 if sex is not None and sex.lower() == 'm' and variant[0] in ('chrX', 'X') else None
         if max_num_clusters is not None:
             clustering.max_num_clusters = max_num_clusters
