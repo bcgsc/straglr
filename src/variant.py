@@ -3,6 +3,7 @@ from collections import Counter, defaultdict
 from operator import itemgetter
 from .vcf import VCF
 from .utils import is_same_repeat
+import copy
 
 class Variant:
     """
@@ -30,16 +31,19 @@ class Variant:
     bed_headers = ['chrom', 'start', 'end', 'repeat_unit']
 
     @classmethod
-    def genotype(cls, variant, clustering, use_mean=False, sex=None, report_in_size=False):
+    def genotype(cls, variant, default_clustering, use_mean=False, sex=None, report_in_size=False):
+        # reset clustering params for every variant instance
+        clustering = copy.deepcopy(default_clustering)
         partials = [r for r in variant[3] if r[-1] == 'partial']
-        min_partial_size = 0
 
         # cluster - always use sizes, only use "full" alleles
         sizes = sorted([a[4] for a in variant[3] if a[-1] == 'full'])
 
         # reserve 1 allele/cluster if there exists partials bigger than max allele
-        bigger_partial_sizes = [p[4] for p in partials]
-        if partials and min(bigger_partial_sizes) > max(sizes) and len(bigger_partial_sizes) >= clustering.min_pts:
+        bigger_partial_sizes = [p[4] for p in partials if p[4] > max(sizes)]
+        # determine min_cluster_size as min_pts may be fractional
+        min_cluster_size = int(len(variant[3]) * clustering.min_pts) if clustering.min_pts < 1 and clustering.min_pts > 0 else clustering.min_pts
+        if partials and len(bigger_partial_sizes) >= min_cluster_size:
             clustering.max_num_clusters = max(1, clustering.max_num_clusters - 1)
 
         max_num_clusters = 1 if sex is not None and sex.lower() == 'm' and variant[0] in ('chrX', 'X') else None
