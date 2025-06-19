@@ -40,10 +40,12 @@ class Variant:
         sizes = sorted([a[4] for a in variant[3] if a[-1] == 'full'])
 
         # reserve 1 allele/cluster if there exists partials bigger than max allele
-        bigger_partial_sizes = [p[4] for p in partials if p[4] > max(sizes)]
+        big_partials = [p for p in partials if p[4] > max(sizes)]
         # determine min_cluster_size as min_pts may be fractional
         min_cluster_size = int(len(variant[3]) * clustering.min_pts) if clustering.min_pts < 1 and clustering.min_pts > 0 else clustering.min_pts
-        if partials and len(bigger_partial_sizes) >= min_cluster_size:
+        form_partial_allele = False
+        if partials and len(big_partials) >= min_cluster_size:
+            form_partial_allele = True
             clustering.max_num_clusters = max(1, clustering.max_num_clusters - 1)
 
         max_num_clusters = 1 if sex is not None and sex.lower() == 'm' and variant[0] in ('chrX', 'X') else None
@@ -75,69 +77,19 @@ class Variant:
             if not assigned:
                 allele.append('NA')
 
-        partials = [r for r in variant[3] if r[-2] == 'partial']
-        if partials:
-            # get biggest allele size that can be clustered
+        if form_partial_allele:
             if report_in_size:
-                partials_sorted = sorted(partials, key=itemgetter(4), reverse=True)
-                biggest_partial_size = partials_sorted[0][4]
+                biggest_partial_size = max([r[4] for r in big_partials])
             else:
-                partials_sorted = sorted(partials, key=itemgetter(3), reverse=True)
-                biggest_partial_size = partials_sorted[0][3]
+                # copy number based on allele size
+                biggest_partial_size = max([r[4] / len(variant[4]) for r in big_partials])
+            gt = '>{:.1f}'.format(biggest_partial_size)
+            variant[6].append(gt)
+            # copy number based on allele size
+            for p in big_partials:
+                p[-1] = gt
+                p[3] = round(float(p[4]) / len(variant[4]), 1)
 
-            bigger_alleles = [a for a in variant[6] if a > biggest_partial_size]
-            if bigger_alleles:
-                alleles_sorted = sorted(variant[6], reverse=True)
-                max_sizes = []
-                min_sizes = []
-                i = 4 if report_in_size else 3
-                for allele in alleles_sorted:
-                    allele_sizes = [a[i] for a in variant[3] if a[-1] == allele]
-                    max_sizes.append(max(allele_sizes))
-                    min_sizes.append(min(allele_sizes))
-
-                for p in partials_sorted:
-                    allele_assigned = None
-                    size = p[4] if report_in_size else p[3]
-                    for i in range(len(alleles_sorted)-1):
-                        if size > max_sizes[i+1]:
-                            allele_assigned = alleles_sorted[i]
-                            break
-                    if allele_assigned is not None:
-                        p[-1] = allele_assigned
-                    else:
-                        for i in range(len(alleles_sorted)):
-                            if size >= min_sizes[i]:
-                                allele_assigned = alleles_sorted[i]
-                                break
-                        if allele_assigned is not None:
-                            p[-1] = allele_assigned
-
-            else:
-                if variant[6]:
-                    max_gt_size = sorted(variant[6], reverse=True)[0]
-                else:
-                    max_gt_size = 0 
-                # find all partials with sizes bigger than current biggest size
-                if report_in_size:
-                    biggers = [p for p in partials if p[4] > max_gt_size]
-                else:
-                    biggers = [p for p in partials if p[3] > max_gt_size]
-
-                # if there are enough partials bigger than minimum, create allele
-                if len(biggers) >= clustering.min_pts:
-                    if report_in_size:
-                        biggest_partial_size = max([r[4] for r in biggers])
-                    else:
-                        # copy number based on allele size
-                        biggest_partial_size = max([r[4] / len(variant[4]) for r in biggers])
-                    gt = '>{:.1f}'.format(biggest_partial_size)
-                    variant[6].append(gt)
-                    # copy number based on allele size
-                    for p in partials:
-                        p[-1] = gt
-                        p[3] = round(float(p[4]) / len(variant[4]), 1)
-            
     @classmethod
     def get_genotype(cls, variant):
         allele_counts = Counter([allele[-1] for allele in variant[3] if allele[-1] != '-' and allele[-1] != 'NA'])
