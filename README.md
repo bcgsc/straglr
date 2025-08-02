@@ -5,7 +5,7 @@ Straglr is a tool that can be used for genome-wide scans for tandem repeat(TR) e
 ## Installation
 Straglr is implemented in Python 3.8 and has been tested in Linux environment.
 
-Straglr depends on [Tandem Repeat Finder(TRF)](https://tandem.bu.edu/trf/trf.html) for identifying TRs and [blastn](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/) for iotif matching. (TRF and blastn executables must be in `$PATH`). Other Python dependencies are listed in `requirements.txt`.
+Straglr depends on [Tandem Repeat Finder(TRF)](https://tandem.bu.edu/trf/trf.html) for identifying TRs and [blastn](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/) for motif matching. (TRF and blastn executables must be in `$PATH`). Other Python dependencies are listed in `requirements.txt`.
 
 The file `environment.yaml` can by used by conda to create an environment with all dependencies installed:
 ```
@@ -22,7 +22,7 @@ conda activate straglr
 ```
 
 ## Input
-Long read alignments sorted by genomic coordindates in BAM format against the reference genome. Suggested aligner: [Minimap2](https://github.com/lh3/minimap2) **-- Please use the option `-Y` to enable soft-clipping so that read sequences can be assessed directly from the BAM file.** 
+Long read alignments sorted by genomic coordinates in BAM format against the reference genome. Suggested aligner: [Minimap2](https://github.com/lh3/minimap2) **-- Please use the option `-Y` to enable soft-clipping so that read sequences can be assessed directly from the BAM file.** 
 
 ## Usage
 ```
@@ -43,7 +43,7 @@ Some common parameters:
 
 `--use_unpaired_clips`: include examination of unpaired clipped alignments in genome scan to detect expansion beyond read size (Default:NOT used)
 
-`--min_support`: minimum number of suppport reads for an expansion to be captured in genome-scan (Default:2)
+`--min_support`: minimum number of support reads for an expansion to be captured in genome-scan (Default:2)
 
 `--min_ins_size`: minimum increase in size (relative to the reference genome) for an expansion to be captured in genome-scan (Default:100)
 
@@ -55,7 +55,7 @@ Some common parameters:
 
 `--genotype_in_size`: report genotype (column 5 of TSV output) in terms of allele sizes instead of copy numbers
 
-`--max_num_clusters`: maximum number of clusters to be tried in Gausssian Mixture Model (GMM) clustering (Default:2)
+`--max_num_clusters`: maximum number of clusters to be tried in Gaussian Mixture Model (GMM) clustering (Default:2)
 
 `--min_cluster_size`: minimum number of reads required to constitute a cluster (allele) in GMM clustering (Default:2)
 
@@ -96,7 +96,7 @@ Highly repetitive genomic regions may be problematic for aligners and give rise 
 	* target_repeat - consensus(shortest) repeat motif from genome scan or target motif in genotyping
 	* locus - locus in UCSC format (chrom:start-end)
 	* coverage - coverage depth of locus
-	* genotype - copy numbers (default) or sizes (`--genotype_in_size`) of each allele detected for given locus, separate by semi-colon(";") if multiple alleles detected, with number of support reads in bracket following each allele copy number/size. An example of a heterozygyous allele in size: `990.8(10);30.9(10)` (Alleles preceded by `>` indicate minimum values, as full alleles are not captured in any support reads)
+	* genotype - copy numbers (default) or sizes (`--genotype_in_size`) of each allele detected for given locus, separate by semi-colon(";") if multiple alleles detected, with number of support reads in bracket following each allele copy number/size. An example of a heterozygous allele in size: `990.8(10);30.9(10)` (Alleles preceded by `>` indicate minimum values, as full alleles are not captured in any support reads)
 	* actual_repeat - actual repeat motif detected in mapped read
 	* read_name - mapped read name
 	* copy_number - number of copies of repeat in allele
@@ -114,7 +114,7 @@ Highly repetitive genomic regions may be problematic for aligners and give rise 
 		| --- | :--- |
 		| cannot_extract_sequence | cannot extract repeat sequence, could be because the repeat is deleted for the read in question, or regions flanking motif are deleted |
 		| motif_size_out_of_range | motif size detected outside specified size range |
-		| insufficent_repeat_coverage | repeat detected does not cover enough (50%) of expansion/insertion sequence |
+		| insufficient_repeat_coverage | repeat detected does not cover enough (50%) of expansion/insertion sequence |
 		| partial_and_insufficient_span | repeat not covering enough (90%) query minus flanking sequences |
 		| unmatched_motif | no repeat found matching target motif |
 
