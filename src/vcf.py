@@ -6,6 +6,7 @@ class VCF:
     file_format = '4.5'
     header = 'CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'
     info = (
+            ('END', 1, 'Integer', 'End position of the variant described in this record'),
             ('LOCUS', 1, 'String', 'Locus ID'),
             ('RUS_REF', 1, 'String', 'Repeat unit sequence in the reference sequence'),
             ('RUL_REF', 1, 'String', 'Repeat unit length in the reference sequence'),
@@ -125,6 +126,7 @@ class VCF:
         ref_len = len(variant[9])
         info = defaultdict(list)
         genotype = defaultdict(list)
+        info['END'] = (variant[2],)
         if locus_id is not None:
             info['LOCUS'] = (locus_id,)
         if len(variant[8]) <= 6:
