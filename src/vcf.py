@@ -23,7 +23,7 @@ class VCF:
     format = (
               ('GT', 1, 'String', 'Genotype'),
               ('DP', 1, 'Integer', 'Read depth'),
-              ('AD', 'R', 'Integer', 'Total read depth for each allele')
+              ('AS', 'R', 'Integer', 'Number of support reads for each allele')
              )
     filters = {
         ('UNMATCHED_MOTIF', 'Unmatched motif'): ('unmatched_motif'),
@@ -182,7 +182,7 @@ class VCF:
                 info['SVLEN'].append(ref_len)
 
             genotype['GT'].append(gt)
-            genotype['AD'].append(dps[str(allele)])
+            genotype['AS'].append(dps[str(allele)])
 
         if variant[5]:
             genotype['DP'].append(variant[5])
