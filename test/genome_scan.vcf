@@ -1,8 +1,9 @@
 ##fileformat=VCFv4.5
-##fileDate=20241124
-##source=StraglrV1.5.2
+##fileDate=20250909
+##source=StraglrV1.5.5
 ##reference=/projects/btl/rchiu/hg38.fa
 ##contig=<ID=chr22,length=50818468>
+##INFO=<ID=END,Number=1,Type=Integer,Description="End position of the variant described in this record">
 ##INFO=<ID=LOCUS,Number=1,Type=String,Description="Locus ID">
 ##INFO=<ID=RUS_REF,Number=1,Type=String,Description="Repeat unit sequence in the reference sequence">
 ##INFO=<ID=RUL_REF,Number=1,Type=String,Description="Repeat unit length in the reference sequence">
@@ -18,7 +19,7 @@
 ##FILTER=<ID=PASS,Description="All filters passed">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
-##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Total read depth for each allele">
+##FORMAT=<ID=AS,Number=R,Type=Integer,Description="Number of support reads for each allele">
 ##ALT=<ID=CNV:TR,Description="Tandem repeat determined base on DNA abundance">
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	Sample
-chr22	45795355	.	A	<CNV:TR>,<CNV:TR>	.	PASS	RUS_REF=TTCTA;SVLEN=69,69;RN=1,1;RUS=TTCTA,TTCTA;RB=1930,1953;CIRB=-44,10,-3,15	GT:DP:AD	1/2:17:8,4
+chr22	45795355	.	A	<CNV:TR>,<CNV:TR>	.	PASS	END=45795424;RUS_REF=TTCTA;SVLEN=69,69;RN=1,1;RUS=TTCTA,TTCTA;RB=1930,1953;CIRB=-44,10,-3,15	GT:DP:AS	1/2:17:8,4

@@ -1,3 +1,7 @@
+v1.5.5
+- output VCF INFO \<END> tag for backward compatibility [issue#73](https://github.com/bcgsc/straglr/issues/73)
+- renamed VCF FORMAT \<AD> to \<AS> for reporting allelic read support [issue#69](https://github.com/bcgsc/straglr/issues/69)
+
 v1.5.4
 - fixed bug [issue#61](https://github.com/bcgsc/straglr/issues/61) as class variable `genotype_config` no longer exists for class Cluster
 - partial alleles not fully-spanned by support reads but exhibit sizes larger than largest "full" allele now counted towards `--max_num_clusters`, will not lead to extra alleles in BED output, and will be reported in VCF [issue#64](https://github.com/bcgsc/straglr/issues/64)
