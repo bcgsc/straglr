@@ -5,7 +5,6 @@ from src.tre import TREFinder
 from src.version import __version__
 import sys
 import tempfile
-import os
 
 def parse_args():
     trf_args_meta = ('Match', 'Mismatch', 'Delta', 'PM', 'PI', 'Minscore', 'MaxPeriod')

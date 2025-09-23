@@ -1,6 +1,5 @@
 import pysam
 from pybedtools import BedTool
-import sys
 import os
 from .utils import create_tmp_file, parallel_process, combine_batch_results, reverse_complement, split_tasks
 from collections import defaultdict

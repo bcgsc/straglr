@@ -1,4 +1,3 @@
-import re
 from collections import defaultdict, Counter
 from operator import itemgetter
 

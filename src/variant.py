@@ -1,8 +1,7 @@
 import numpy as np
-from collections import Counter, defaultdict
+from collections import Counter
 from operator import itemgetter
 from .vcf import VCF
-from .utils import is_same_repeat
 import copy
 
 class Variant:
