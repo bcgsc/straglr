@@ -1,7 +1,5 @@
 import numpy as np
-from numpy.random import rand
 from sklearn.mixture import GaussianMixture
-from scipy import stats
 from operator import itemgetter
 from collections import defaultdict
 import argparse

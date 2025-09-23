@@ -6,8 +6,8 @@ import os
 import re
 from .variant import Variant, Allele
 from collections import defaultdict, Counter
-from operator import itemgetter, attrgetter
-from .utils import split_tasks, parallel_process, combine_batch_results, create_tmp_file, reverse_complement, merge_spans, complement_spans, is_same_repeat
+from operator import itemgetter
+from .utils import split_tasks, parallel_process, combine_batch_results, create_tmp_file, merge_spans, complement_spans, is_same_repeat
 from .ins import INSFinder, INS
 import math
 import numpy as np
