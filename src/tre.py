@@ -76,7 +76,7 @@ class TREFinder:
         self.sex = sex.lower() if sex is not None else None
 
     def construct_trf_output(self, input_fasta):
-        m = re.search('(\d[\d\s]*\d)', self.trf_args)
+        m = re.search(r'(\d[\d\s]*\d)', self.trf_args)
         if m is not None:
             return '{}/{}.{}.dat'.format(os.path.dirname(input_fasta), os.path.basename(input_fasta), m.group(1).replace(' ', '.'))
             #return '{}/{}.{}.dat'.format(os.getcwd(), os.path.basename(input_fasta), m.group(1).replace(' ', '.'))

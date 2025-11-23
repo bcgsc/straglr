@@ -361,8 +361,8 @@ class INSFinder:
         clipped_size1 = None
         clipped_size2 = None
 
-        clipped_start_regex = re.compile('^(\d+)[S|H]')
-        clipped_end_regex = re.compile('(\d+)[S|H]$')
+        clipped_start_regex = re.compile(r'^(\d+)[S|H]')
+        clipped_end_regex = re.compile(r'(\d+)[S|H]$')
 
         closeness_to_each = aln.infer_read_length()
         sas = cls.get_secondary_alignments(aln)
