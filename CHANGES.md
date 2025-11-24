@@ -1,3 +1,6 @@
+v1.5.6
+- added `r''` around regex pattern in `ins.py` and `tre.py` to comply with Python3.12
+
 v1.5.5
 - output VCF INFO \<END> tag for backward compatibility [issue#73](https://github.com/bcgsc/straglr/issues/73)
 - renamed VCF FORMAT \<AD> to \<AS> for reporting allelic read support [issue#69](https://github.com/bcgsc/straglr/issues/69)
